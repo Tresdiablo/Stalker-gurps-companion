@@ -244,8 +244,8 @@ function declareAttack(s, ctx, p, settings = {}) {
 
   if (cs) { cs.actedRound = enc.round; cs.aim = null; cs.maneuver = maneuver; if (target) cs.targetId = target.id; }
 
-  if (!roll.success) { ev.stage = 'resolved'; ev.status = 'Missed'; ev.proposal = null; return ev; }
-  if (!target) { ev.stage = 'resolved'; ev.status = 'Hit (no target selected)'; return ev; }
+  if (!roll.success) { ev.stage = 'closed'; ev.status = roll.critical === 'failure' ? 'Critical miss' : 'Missed'; ev.proposal = null; return ev; }
+  if (!target) { ev.stage = 'closed'; ev.status = 'Hit (no target selected)'; return ev; }
   if (noDefense) { ev.defense = { type: 'none', reason: roll.critical === 'success' ? 'critical hit' : 'target unaware' }; return rollEventDamage(s, ctx, ev, settings); }
   ev.stage = 'awaiting-defense';
   ev.status = 'Attack succeeded — awaiting defense';
@@ -295,7 +295,7 @@ function resolveDefense(s, ctx, eventId, p, settings = {}) {
   ev.defense = { type: p.type, label: opt.label, base, mods: modset.mods, effective, roll, hitsBefore, hitsDefended: Math.min(hitsBefore, dodged), byUser: p.byUser || null, hidden: !!p.hidden };
   ev.attack.hitsAfterDefense = hitsBefore - ev.defense.hitsDefended;
   if (p.dodgeAndDrop && cs) { cs.posture = 'prone'; target.session.posture = 'prone'; }
-  if (ev.attack.hitsAfterDefense <= 0) { ev.stage = 'resolved'; ev.status = 'Defended — no hits'; ev.proposal = null; return ev; }
+  if (ev.attack.hitsAfterDefense <= 0) { ev.stage = 'closed'; ev.status = 'Defended — no hits'; ev.proposal = null; return ev; }
   return rollEventDamage(s, ctx, ev, settings);
 }
 
@@ -345,7 +345,7 @@ function rollEventDamage(s, ctx, ev, settings = {}) {
   ev.damage = { hits: results, totalInjury, totalFP, shock: Math.max(-4, results.reduce((a, h) => a + h.shock, 0)), notes, followUps: followUps.concat(th.checks) };
   ev.proposal = { targetId: target.id, hp: -totalInjury, fp: -totalFP, conditions: followUps.filter(f => f.condition).map(f => f.condition), armor: results.flatMap(h => h.armorLoss) };
   ev.stage = 'resolved';
-  ev.status = `Awaiting GM decision — ${totalInjury} HP${totalFP ? `, ${totalFP} FP` : ''} proposed`;
+  ev.status = totalInjury || totalFP || ev.proposal.conditions.length ? `Awaiting GM decision — ${totalInjury} HP${totalFP ? `, ${totalFP} FP` : ''} proposed` : 'Hit — no injury (armor stopped it)';
   return ev;
 }
 

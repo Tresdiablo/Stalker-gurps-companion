@@ -23,16 +23,23 @@ const PROVISIONAL = 'Provisional campaign statistics; verify against GURPS High-
 
 function muzzleInterface(cal) { return 'thread-' + cal.replace(/[^a-z0-9.]/g, ''); }
 
+/**
+ * Default anchor points for the seed artwork. The Tier 1 images face LEFT (muzzle on the left);
+ * images taller than wide are rotated (muzzle at the bottom). The GM fine-tunes anchors in the
+ * Item Editor's anchor editor.
+ */
 function mountsFor(sub, cal, opts = {}) {
   const m = [];
+  const vertical = opts.vertical;
+  const P = (h, vtx) => (vertical ? vtx : h);
   if (sub === 'Pistols' || sub === 'Revolvers') {
-    m.push({ id: 'muzzle', slot: 'muzzle', interfaces: [muzzleInterface(cal)], x: 0.97, y: 0.28, scale: 0.45, z: 2 });
-    m.push({ id: 'side', slot: 'side', interfaces: ['pistol-rail'], x: 0.55, y: 0.6, scale: 0.3, z: 3 });
+    m.push({ id: 'muzzle', slot: 'muzzle', interfaces: [muzzleInterface(cal)], ...P({ x: 0.06, y: 0.3, rot: 180 }, { x: 0.5, y: 0.04, rot: -90 }), scale: 0.45, z: 2 });
+    m.push({ id: 'side', slot: 'side', interfaces: ['pistol-rail'], ...P({ x: 0.4, y: 0.55, rot: 0 }, { x: 0.55, y: 0.4, rot: 90 }), scale: 0.3, z: 3 });
   } else {
-    m.push({ id: 'optic', slot: 'optic', interfaces: opts.dovetail ? ['picatinny', 'ak-dovetail'] : ['picatinny'], x: 0.45, y: 0.12, scale: 0.28, z: 3 });
-    m.push({ id: 'muzzle', slot: 'muzzle', interfaces: [muzzleInterface(cal)], x: 0.985, y: 0.3, scale: 0.22, z: 2 });
-    if (sub !== 'Shotguns') m.push({ id: 'foregrip', slot: 'foregrip', interfaces: ['picatinny'], x: 0.68, y: 0.72, scale: 0.12, z: 1 });
-    m.push({ id: 'side', slot: 'side', interfaces: ['picatinny'], x: 0.74, y: 0.42, scale: 0.12, z: 4 });
+    m.push({ id: 'optic', slot: 'optic', interfaces: opts.dovetail ? ['picatinny', 'ak-dovetail'] : ['picatinny'], ...P({ x: 0.5, y: 0.25, rot: 0 }, { x: 0.65, y: 0.5, rot: 90 }), scale: 0.28, z: 3 });
+    m.push({ id: 'muzzle', slot: 'muzzle', interfaces: [muzzleInterface(cal)], ...P({ x: 0.04, y: 0.33, rot: 180 }, { x: 0.45, y: 0.97, rot: 90 }), scale: 0.22, z: 2 });
+    if (sub !== 'Shotguns') m.push({ id: 'foregrip', slot: 'foregrip', interfaces: ['picatinny'], ...P({ x: 0.3, y: 0.58, rot: 0 }, { x: 0.3, y: 0.7, rot: 90 }), scale: 0.12, z: 1 });
+    m.push({ id: 'side', slot: 'side', interfaces: ['picatinny'], ...P({ x: 0.26, y: 0.42, rot: 0 }, { x: 0.55, y: 0.25, rot: 90 }), scale: 0.12, z: 4 });
   }
   return m;
 }
@@ -51,7 +58,7 @@ function legacyDefs() {
       id: w.id, name: w.name, category: 'weapon', sub, tier: w.tier, w: w.w, h: w.h, weight: w.weight,
       value: PRICE_BY_SUB[sub] || 10000, image: w.image ? 'seed:' + w.image : '', rarity: 'common',
       description: `${w.description} ${PROVISIONAL}`,
-      weapon: { kind: 'ranged', skill: w.gurps.skill, damage: w.gurps.damage, acc: Number(w.gurps.acc) || 0, range: RANGE_BY_SUB[sub], rof: w.gurps.rof, shots: w.gurps.shots + (integral ? '' : '+1'), bulk: BULK_BY_SUB[sub] || -4, rcl: Number(w.gurps.rcl) || 2, minST: sub === 'Pistols' ? 9 : 10, calibers, magFamilies: w.magFamilies, integral, mounts: mountsFor(sub, cal, { dovetail: /vepr|sks|svt|mosin|vpo|akm/i.test(w.name) }), notes: w.gurps.gurpsNotes },
+      weapon: { kind: 'ranged', skill: w.gurps.skill, damage: w.gurps.damage, acc: Number(w.gurps.acc) || 0, range: RANGE_BY_SUB[sub], rof: w.gurps.rof, shots: w.gurps.shots + (integral ? '' : '+1'), bulk: BULK_BY_SUB[sub] || -4, rcl: Number(w.gurps.rcl) || 2, minST: sub === 'Pistols' ? 9 : 10, calibers, magFamilies: w.magFamilies, integral, mounts: mountsFor(sub, cal, { dovetail: /vepr|sks|svt|mosin|vpo|akm/i.test(w.name), vertical: w.h > w.w }), notes: w.gurps.gurpsNotes },
       legacyId: w.id,
     });
   }
@@ -69,7 +76,7 @@ function legacyDefs() {
     if (hp) { ammo.woundShift = 1; ammo.divisor = 0.5; }
     if (buck) { ammo.damage = '1d+1 pi'; ammo.projectiles = 9; }
     if (cal === '9x18pmm') ammo.onlyWeapons = ['t1-weapon-pp-9-klin'];
-    defs.push({ id: a.id, name: a.name, category: 'ammo', sub: /12\/70/.test(cal) ? 'Shotgun' : /x(39|54|51|45|33)/.test(cal) ? 'Rifle' : 'Pistol', tier: 1, w: 1, h: 1, stack: a.stackSize || 30, weight: a.weight, value: AMMO_PRICE[cal] || 30, rarity: hp ? 'uncommon' : 'common', description: `${a.name}. ${hp ? 'Hollow-point: piercing damage one size larger, armor divisor (0.5) (GURPS High-Tech p.166).' : buck ? 'Buckshot: 9 projectiles of 1d+1 pi (GURPS High-Tech).' : ''} ${a.gurps.gurpsNotes || ''}`.trim(), ammo, legacyId: a.id });
+    defs.push({ id: a.id, name: a.name, category: 'ammo', sub: /12\/70/.test(cal) ? 'Shotgun' : /x(39|54|51|45|33)/.test(cal) ? 'Rifle' : 'Pistol', tier: 1, w: 1, h: 1, stack: a.stackSize || 30, weight: a.weight, value: AMMO_PRICE[cal] || 30, rarity: hp ? 'uncommon' : 'common', description: `${a.name}. ${hp ? 'Hollow-point: piercing damage one size larger, armor divisor (0.5) (GURPS High-Tech p.166).' : buck ? 'Buckshot: 9 projectiles of 1d+1 pi (GURPS High-Tech).' : ''} ${(a.gurps.gurpsNotes || '').replace(/Ammunition-type injury \/ armor effects are not automatically applied by current GURPS combat resolution\. /, '').replace(/Injury adjustments require GM adjudication\./, '')}`.trim(), ammo, legacyId: a.id });
   }
   return defs;
 }
