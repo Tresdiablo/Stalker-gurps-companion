@@ -33,7 +33,9 @@ export function ItemArt({ v, item, w, h, rotated }) {
   const d = M.def(v, item);
   const parts = d?.weapon ? Object.entries(M.installed(v, item)).map(([mount, att]) => ({ mount: d.weapon.mounts.find(m => m.id === mount), att, ad: M.def(v, att) })).filter(p => p.mount && p.ad) : [];
   let baseRef = d?.image || '';
-  const layered = parts.filter(p => p.ad.attachment?.art?.image || (p.mount.slot === 'magazine' && p.ad.image));
+  // an attachment is drawn with its overlay image, or its normal item image when no overlay is set
+  // (the same fallback the Item Editor preview uses)
+  const layered = parts.filter(p => p.ad.attachment?.art?.image || p.ad.image);
   const missingArt = parts.filter(p => !layered.includes(p));
   if (missingArt.length && d?.variants?.length) {
     const ids = Object.fromEntries(parts.map(p => [p.mount.id, p.att.defId]));

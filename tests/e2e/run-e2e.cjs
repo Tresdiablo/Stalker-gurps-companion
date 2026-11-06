@@ -200,6 +200,20 @@ const gm = { role: 'gm' };
   await shot(P, '5-trader');
   console.log('Trader OK: bought', s().defs[stock.defId].name, 'for', moneyBefore - s().characters[pc].session.money, 'RU');
 
+  // ---------------- Regression: a GM-made optic with only a base image (no overlay) is drawn on the weapon
+  const optDef = d('def.save', { def: { name: 'Homemade red dot', category: 'attachment', sub: 'Optics', w: 1, h: 1, image: 'seed:att-reflex.png', attachment: { slot: 'optic', interfaces: ['picatinny', 'ak-dovetail'], mods: { acc: 1 } } } }).result.id;
+  const optic = d('item.spawn', { defId: optDef, target: { p: 'char:' + pc, g: 'ground', x: 8, y: 0, r: 0 } }).result.ids[0];
+  d('item.detach', { weaponId: akm, mountId: 'optic' });
+  const gun = d('item.spawn', { defId: 't1-weapon-vpo-136-vepr-km', target: { p: 'char:' + pc, g: 'ground', x: 0, y: 2, r: 0 } }).result.ids[0];
+  await P.click('.nav button:has-text("Inventory")');
+  const imgsBefore = await P.locator(`.tile[data-item="${gun}"] img`).count();
+  await dragTo(`.tile[data-item="${optic}"]`, `.tile[data-item="${gun}"]`, 40, 10);
+  await waitFor(() => s().items[optic].loc.mount === 'optic');
+  await P.waitForFunction(id => document.querySelectorAll(`.tile[data-item="${id}"] img`).length >= 2, gun);
+  assert.ok((await P.locator(`.tile[data-item="${gun}"] img[src*="att-reflex"]`).count()) === 1, 'optic overlay drawn on the inventory tile');
+  console.log('Attachment overlay OK: optic without an overlay image is drawn on the weapon (imgs', imgsBefore, '->', await P.locator(`.tile[data-item="${gun}"] img`).count(), ')');
+  await shot(P, '6-optic-on-weapon-tile');
+
   assert.deepEqual(errors, [], 'no browser errors');
   console.log('E2E PASSED');
   await browser.close();
