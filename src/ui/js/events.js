@@ -42,7 +42,7 @@ export function EventCard({ v, ev, focus, onFocus, compact, expanded }) {
     <div class="head" onClick=${() => setOpen(o => !o)}>
       <span class="grow"><span class="title">${ev.title}</span><br /><span class="small muted">${summary(v, ev)}</span></span>
       ${a?.roll ? html`<${Result} roll=${a.roll} />` : ev.roll ? html`<${Result} roll=${ev.roll} />` : null}
-      <span class="chip stage-chip ${ev.stage === 'applied' ? 'good' : ev.stage === 'resolved' || ev.stage === 'awaiting-defense' ? 'warn' : ''}">${STAGE[ev.stage] || ev.stage}</span>
+      <span class="chip stage-chip ${ev.stage === 'applied' ? 'good' : M.needsGm(ev) ? 'warn' : ''}">${ev.stage === 'resolved' && !M.needsGm(ev) ? (ev.kind === 'skill' || ev.kind === 'roll' || ev.kind === 'contest' ? 'Rolled' : 'Resolved') : STAGE[ev.stage] || ev.stage}</span>
       <span class="when">${ev.round ? `R${ev.round} · ` : ''}${fmtTime(ev.at)}</span>
     </div>
     ${open && !compact ? html`<div class="bodyx" onClick=${e => e.stopPropagation()}>
