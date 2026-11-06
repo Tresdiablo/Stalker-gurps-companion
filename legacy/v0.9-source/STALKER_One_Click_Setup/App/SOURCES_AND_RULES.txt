@@ -1,0 +1,36 @@
+RESEARCH SOURCES / DESIGN NOTES
+================================
+Artwork and size/capacity data: supplied player image (image(6).png).
+
+Magazine compatibility background:
+- Escape from Tarkov Magazine / Weapon Mods catalogue (weapon-family / magazine data):
+  https://escapefromtarkov.fandom.com/wiki/Weapon_mods
+- Saiga-9 compatible magazine list (10-round magazine and Vityaz 30-round):
+  https://escapefromtarkov.fandom.com/wiki/Saiga-9_9x19_carbine
+- PP-9 Klin / PP-91 Kedr PMM safety distinction:
+  https://escapefromtarkov.fandom.com/wiki/PP-9_Klin_9x18PMM_submachine_gun
+- PB uses standard PM magazines:
+  https://sadefensejournal.com/the-soviet-model-pb-silenced-pistol/
+- APS/APB same 20-round magazine system:
+  https://weaponsystems.net/system/304-Stechkin%2BAPS
+- Thompson box magazine sharing / drum non-compatibility for M1A1:
+  https://www.americanrifleman.org/content/thompson-submachine-gun-the-tommy-gun-goes-to-war/
+  https://man.fas.org/dod-101/sys/land/m1928.htm
+- HK USC / UMP magazines are different:
+  https://www.americanrifleman.org/content/one-rifle-one-handgun-one-cartridge-the-modern-pcc/
+- VPO-136 uses 7.62x39 AK-pattern magazines:
+  https://escapefromtarkov.fandom.com/wiki/Molot_Arms_VPO-136_Vepr-KM_7.62x39_carbine
+- Real VPO-215 is .366 TKM, not user-requested custom 7.62x39:
+  https://escapefromtarkov.fandom.com/wiki/Molot_Arms_VPO-215_Gornostay_.366_TKM_bolt-action_rifle
+
+IMPORTANT LIMITATIONS
+- This build enforces magazine FAMILY matching for its Tier 1 catalogue. Legacy custom items with
+  no magazine-family metadata still fall back to earlier caliber-based matching for compatibility.
+- Fixed/integral feeds are represented as an attached non-ejectable magazine item; compatible ammunition
+  can be loaded via the Ammo & Magazines tab.
+- Magazine capacities and image cell dimensions follow the supplied game screenshot, not necessarily
+  current real-world or original video-game statistics.
+- Weights and GURPS combat values are approximate player-facing starting points, not verified official stats.
+- Image thumbnails are crops of the uploaded collage, not isolated transparent renders.
+
+Navigation dropdown: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/select

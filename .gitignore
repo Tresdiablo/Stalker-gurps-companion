@@ -1,0 +1,8 @@
+node_modules/
+dist/
+vendor/gcs/*
+!vendor/gcs/README.txt
+!vendor/gcs/LICENSE-GCS-MPL-2.0.txt
+.campaign-data/
+test-results/
+*.log

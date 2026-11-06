@@ -1,0 +1,2 @@
+This directory is populated with the SHA256-verified official GCS Windows release by INSTALL_WINDOWS.cmd.
+For offline builds, place the full unmodified Windows GCS distribution here, with gcs.exe at this directory root.

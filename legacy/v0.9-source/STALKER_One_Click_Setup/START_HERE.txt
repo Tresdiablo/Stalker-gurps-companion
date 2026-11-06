@@ -1,0 +1,15 @@
+STALKER GURPS — UNIFIED WINDOWS DESKTOP WORKSPACE v0.9
+
+1. Extract the complete ZIP to a folder on Windows.
+2. Run INSTALL_WINDOWS.cmd (needs internet for Node/Electron and official GCS 5.58.0 archive).
+3. Installer downloads and verifies the COMPLETE original GCS, builds STALKER, then installs one Windows desktop suite.
+4. Launch STALKER GURPS Companion, select Character Sheet > Link / change character.
+5. Select a .gcs character you created with the full GCS application. Use Edit linked character in GCS.
+6. When you save in GCS, STALKER automatically reloads the character data. Campaign inventory, HP, FP and GM injury application stay in STALKER.
+
+IMPORTANT: GCS and STALKER display in two native desktop windows, in one installed suite. This is not a single-window reimplementation.
+The ZIP contains editable source, not a precompiled Windows EXE. Your Windows computer builds the installer.
+Do not uninstall your previous build or erase its save data until you have tested this build.
+
+Developer handoff: App/CLAUDE_HANDOFF.md; verified functionality/limitations: App/QA_REPORT_UNIFIED.md.
+Upstream GCS source: https://github.com/richardwilkes/gcs (MPL-2.0)

@@ -1,0 +1,34 @@
+/* Desktop-only compact controls. Original gameplay controls and handlers remain. */
+.page-tabs .nav-links[hidden]{display:none!important}
+.page-tabs .nav-shortcuts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:35px}
+.page-tabs .nav-shortcut{padding:7px 12px;font-size:12px;min-height:31px;border-radius:5px}
+.page-tabs .nav-shortcut.active{background:#35545b;color:#fff;border-color:#a4bbc0}
+.page-tabs .nav-more{border-radius:5px;padding:8px 12px;min-height:34px}
+.page-tabs .nav-primary{gap:9px}
+.page-tabs .nav-picker{flex:0 1 390px;min-width:260px}
+.page-tabs .nav-picker-hint{display:none}
+.page-tabs .nav-build-status{margin-left:auto}
+.page-tabs .nav-links:not([hidden]){padding:10px;background:#14222c;border:1px solid #384d5b;border-radius:7px}
+.profilebar .desktop-tools{position:relative;font-size:12px}
+.profilebar .desktop-tools>summary{list-style:none;cursor:pointer;border:1px solid #53636b;padding:7px 12px;background:#182a33;border-radius:5px;color:#e2eaf0;user-select:none}
+.profilebar .desktop-tools>summary::-webkit-details-marker{display:none}
+.profilebar .desktop-tools>summary:after{content:' ▾';color:#99b1bd}
+.profilebar .desktop-tools[open]>summary{border-color:#91acb8}
+.profilebar .desktop-tools-content{position:absolute;right:0;top:calc(100% + 6px);z-index:1000;display:grid;grid-template-columns:repeat(2,minmax(115px,1fr));gap:7px;min-width:265px;max-width:320px;padding:12px;background:#172631;border:1px solid #597283;box-shadow:0 12px 32px #0009;border-radius:7px}
+.profilebar .desktop-tools-content button{width:100%;min-height:33px;text-align:center}
+.profilebar .desktop-tools-content #profileDelete,.profilebar .desktop-tools-content #reset{border-color:#93605f;color:#f2b3b0}
+@media(max-width:950px){.page-tabs .nav-build-status{display:none}.page-tabs .nav-picker{flex:1 1 220px;min-width:180px}}
+
+/* Unified GCS desktop launcher */
+.gcs-native-panel{border-left:3px solid #739d74}.gcs-native-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.gcs-native-actions button{min-height:34px}
+/* GCS native workspace: one compact toolbar, status below. */
+#sheetPage .gcs-native-panel{grid-column:1/-1;border-left:3px solid #7d9c79}
+.gcs-native-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.gcs-native-actions button{min-height:35px}
+.gcs-connection{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid #344954;padding-top:11px}
+#gcsConnectionSummary{font-weight:600;color:#b3d2b3}
+#gcsConnectionSummary[data-error="true"]{color:#f0b1a7}
+#gcsConnectionDetails{flex-basis:100%;overflow-wrap:anywhere;font-size:12px}
+.gcs-connection button{font-size:12px;padding:5px 10px}
+/* Hide the older browser-import panel when the linked desktop workspace replaces it. */
+#sheetPage .panel[hidden]{display:none!important}

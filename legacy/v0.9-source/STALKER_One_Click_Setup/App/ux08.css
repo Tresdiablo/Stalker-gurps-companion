@@ -1,0 +1,52 @@
+/* Beta 0.8: preserve Build 4.5's dark palette and typography. */
+.ux08-inventory-gear{background:#14232f;border:1px solid #40576a;border-radius:8px;padding:12px;margin:12px 0}
+.ux08-panel-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.ux08-panel-head h2,.ux08-panel-head h3{margin:0!important}
+.ux08-inventory-hint{font-size:12px;color:#a8c3d7;border-left:3px solid #7392aa;padding:6px 10px;background:#101e29;margin-bottom:10px}
+.ux08-stat-line{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0;font-size:12px}
+.ux08-stat-line>span{padding:4px 7px;border-radius:5px;background:#22384a;color:#d9e6f0}
+.ux08-stat-line>.ux08-bonus{color:#8dbdff}.ux08-stat-line>.ux08-penalty{color:#e69a9a}
+.ux08-gear-content{padding-top:8px}.ux08-gear-tools{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}
+.ux08-gear-tools button,.ux08-quick-actions button{font-size:12px;min-height:32px}
+.ux08-quick-actions{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+.ux08-menu-title{font-size:12px;color:#c7d5e3;padding:7px 9px;border-bottom:1px solid #395265;font-weight:700}
+body[data-mode='gm'] #combatPage #ux08UnifiedCombat{display:block!important}
+#ux08UnifiedCombat[hidden],#ux08NpcPane[hidden],#ux08PlayerPane[hidden]{display:none!important}
+.ux08-combat-unified{border:1px solid #42617a;background:#132331;border-radius:9px;padding:15px;box-shadow:0 7px 24px #0003;margin-bottom:12px}
+.ux08-combat-toggle{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #344e62;margin:14px 0;padding-bottom:10px}
+.ux08-mode-btn{background:#1c3142;color:#bbcfdf;border:1px solid #405b73;padding:10px 14px;flex:1 1 180px;min-height:38px}
+.ux08-mode-btn.ux08-selected{background:#355a73;color:#f0f6fa;border-color:#83b5cf;font-weight:800}
+.ux08-combat-pane{min-width:0;max-width:100%}
+.ux08-combat-pane>section,.ux08-combat-pane>.panel{margin:8px 0!important;max-width:100%;background:#152532}
+.ux08-combat-pane .combat-pair-controls{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;gap:10px}
+.ux08-combat-review{margin-top:14px;border-top:1px solid #4a6578;padding-top:13px}
+.ux08-combat-review h3{margin:0 0 7px}
+.ux08-review-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between;padding:12px 10px;margin:7px 0;background:#0e1d29;border:1px solid #31495b;border-radius:6px}
+.ux08-review-row strong,.ux08-review-row small{display:block;margin:4px 0}.ux08-review-main{min-width:170px;flex:1 1 230px}
+.ux08-review-buttons{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ux08-review-buttons input{max-width:76px;min-height:32px}
+.ux08-review-buttons button{font-size:11px;min-height:32px}.ux08-review-detail pre{max-width:580px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}
+body[data-mode='gm'] #combatPage>.ux08-gm-secondary-hidden{display:none!important}
+.ux08-library{display:grid;grid-template-columns:minmax(190px,250px) minmax(0,1fr);gap:15px;align-items:start}
+.ux08-library-sidebar,.ux08-library-list{background:#132331;border:1px solid #3b5368;border-radius:8px;padding:12px;min-width:0}
+.ux08-library-sidebar{position:sticky;top:10px}
+.ux08-library-sidebar strong{font-size:13px}.ux08-library-sidebar small.muted{display:block;margin-top:4px;font-size:11px}
+.ux08-folder-tree{margin-top:13px;display:flex;flex-direction:column;gap:3px}
+.ux08-branch{border-top:1px solid #2d4355;margin:5px 0;padding-top:5px;display:flex;flex-direction:column;gap:3px}
+.ux08-folder{width:100%;border:1px solid transparent;background:transparent;color:#ccdde9;text-align:left;border-radius:5px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;font-size:12px;gap:8px}
+.ux08-folder:hover{background:#243d51}.ux08-folder.ux08-folder-active{background:#355670;border-color:#6592b0;color:#fff;font-weight:750}
+.ux08-folder-count{background:#253c50;border-radius:6px;padding:1px 6px;color:#a8d2e9}
+.ux08-folder-toolbar{display:flex;flex-wrap:wrap;gap:5px;margin-top:13px;padding-top:9px;border-top:1px solid #304859}
+.ux08-folder-toolbar button{font-size:11px;padding:6px 8px;min-height:30px}
+.ux08-library-caption{color:#a8becf;font-size:12px;margin-bottom:12px;line-height:1.4}
+.ux08-library-list .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}
+.ux08-library-list .gm-card{min-width:0;margin:0!important}
+.ux08-advanced{border:1px solid #385266;border-radius:7px;padding:8px 12px;background:#102231;margin:8px 0}
+.ux08-advanced>summary{cursor:pointer;color:#c4dbe9;font-size:12px;font-weight:750;padding:6px 0}
+.ux08-advanced[open]>summary{border-bottom:1px solid #35516b;padding-bottom:10px;margin-bottom:12px}
+.ux08-dialog-advanced{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.ux08-dialog-advanced:not([open]){display:block}.ux08-dialog-advanced summary{grid-column:1/-1}
+.ux08-item-editor-advanced{grid-column:1/-1}.ux08-item-editor-advanced .gurps-fields{width:100%}
+#ux08WorkbenchAdvanced[open]{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+#ux08WorkbenchAdvanced[open] summary,#ux08WorkbenchAdvanced textarea{grid-column:1/-1}
+#ux08FolderToolbar button{flex:1 1 auto}
+@media(max-width:840px){.ux08-library{grid-template-columns:1fr}.ux08-library-sidebar{position:static}.ux08-combat-pane .combat-pair-controls{grid-template-columns:1fr}}

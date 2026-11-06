@@ -1,0 +1,60 @@
+﻿Type,Name,Caliber,Capacity,Family,Width cells,Height cells,Notes
+Magazine,SKS fixed 10-round box,7.62×39mm,10,sks,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,SVT-40 10-round magazine,7.62×54R,10,svt40,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,PM / PB 8-round magazine,9×18mm PM,8,makarov,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,MP5 20-round magazine,9×19mm,20,mp5,1,2,Detachable magazine; compatible guns use the same magazine family. Also fits other MP5-pattern guns.
+Magazine,TT 8-round magazine,7.62×25mm Tokarev,8,tt,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,APS / APB 20-round magazine,9×18mm PM,20,stechkin,1,2,Detachable magazine; compatible guns use the same magazine family.
+Magazine,M1911 7-round magazine,.45 ACP,7,1911,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,CZ 75B 16-round magazine,9×19mm,16,cz75,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,Hi-Point C-9 8-round magazine,9×19mm,8,hi-point-c9,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,Beretta 92 15-round magazine,9×19mm,15,beretta92,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,MTs-255-12 5-shot cylinder,12/70,5,mts255,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,Kedr / Kedr-B / Klin 30-round magazine,9×18mm PM,30,kedr,1,2,Detachable magazine; compatible guns use the same magazine family. PMM ammunition can be used only when attached to the Klin; regular Kedr variants cannot fire PMM safely.
+Magazine,MP-133 6-shot tube,12/70,6,mp133,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,MP-43-1C 2-chamber breech,12/70,2,mp43,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,MP-153 4-shot tube,12/70,4,mp153,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,MP-18 single-shot breech,7.62×54R,1,mp18,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,AR-15 STANAG 10-round magazine,5.56×45mm,10,stanag556,1,1,Detachable magazine; compatible guns use the same magazine family. Standard STANAG 5.56 magazine; compatible with other STANAG AR-15s.
+Magazine,Sawed-off 2-chamber breech,12/70,2,sawed,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,Auto-5 4-shot tube,12/70,4,auto5,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected.
+Magazine,Saiga-9 / Vityaz 10-round magazine,9×19mm,10,vityaz9,1,1,Detachable magazine; compatible guns use the same magazine family. 9mm Vityaz-pattern magazine; also for matching PP-19-01 variants.
+Magazine,PPSh-41 35-round box magazine,7.62×25mm Tokarev,35,ppsh,1,2,Detachable magazine; compatible guns use the same magazine family.
+Magazine,PP-2000 20-round magazine,9×19mm,20,pp2000,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,HK USC 10-round magazine,.45 ACP,10,hk-usc,1,1,Detachable magazine; compatible guns use the same magazine family. USC civilian magazine does NOT interchange with unmodified UMP 45 magazines.
+Magazine,Thompson M1928 50-round drum,.45 ACP,50,thompson-drum,2,2,Detachable magazine; compatible guns use the same magazine family. Not compatible with the Thompson M1A1.
+Magazine,Thompson 30-round stick magazine,.45 ACP,30,thompson-box,1,2,Detachable magazine; compatible guns use the same magazine family. Compatible with the M1928A1 and M1A1.
+Magazine,VPO-101 5-round magazine,7.62×51mm,5,vpo101,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,Mosin 5-round fixed magazine,7.62×54R,5,mosin,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected. Both Mosin Infantry and Mosin Sniper use a fixed magazine.
+Magazine,AK 7.62×39 10-round magazine,7.62×39mm,10,ak762,1,1,Detachable magazine; compatible guns use the same magazine family. Interchanges with the unmodified AKM and VPO-136 Vepr-KM magazine systems.
+Magazine,VPO-215 custom 7.62×39 4-round magazine,7.62×39mm,4,vpo215-custom,1,1,Detachable magazine; compatible guns use the same magazine family. FICTIONAL CUSTOM CAMPAIGN CONVERSION. Real VPO-215 is .366 TKM; no claim that factory magazines support 7.62×39.
+Magazine,StG-44 30-round magazine,7.92×33mm Kurz,30,stg44,1,2,Detachable magazine; compatible guns use the same magazine family.
+Magazine,UZI 32-round magazine,9×19mm,32,uzi9,1,2,"Detachable magazine; compatible guns use the same magazine family. Full-size UZI magazines, not MP5 or UZI PRO magazine patterns."
+Magazine,Henry .357 10-round tube,.357 Magnum (9×33R),10,henry357,1,1,Built-in feed system; automatically supplied with the corresponding weapon. Cannot be ejected. Model inferred from 9×33R (.357 Magnum) marking; cartridge naming is a campaign interpretation.
+Magazine,MP5 30-round magazine,9×19mm,30,mp5,1,2,Detachable magazine; compatible guns use the same magazine family.
+Magazine,Kedr 20-round magazine,9×18mm PM,20,kedr,1,1,Detachable magazine; compatible guns use the same magazine family.
+Magazine,PP-19-01 Vityaz 30-round magazine,9×19mm,30,vityaz9,1,2,Detachable magazine; compatible guns use the same magazine family.
+Ammo,7.62×39mm FMJ,7.62×39mm,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication. VPO-215 use in this campaign is a fictional chamber conversion.
+Ammo,7.62×39mm HP,7.62×39mm,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication. VPO-215 use in this campaign is a fictional chamber conversion.
+Ammo,7.62×54R FMJ,7.62×54R,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.62×54R HP,7.62×54R,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,9×18mm PM FMJ,9×18mm PM,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,9×18mm PM HP,9×18mm PM,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,9×18mm PMM FMJ,9×18mm PMM,,,1,1,"Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication. Higher-pressure PMM: compatible with Klin only, not Kedr/Kedr-B/PM/PB/APS/APB."
+Ammo,9×18mm PMM HP,9×18mm PMM,,,1,1,"Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication. Higher-pressure PMM: compatible with Klin only, not Kedr/Kedr-B/PM/PB/APS/APB."
+Ammo,9×19mm FMJ,9×19mm,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,9×19mm HP,9×19mm,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.62×25mm Tokarev FMJ,7.62×25mm Tokarev,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.62×25mm Tokarev HP,7.62×25mm Tokarev,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,.45 ACP FMJ,.45 ACP,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,.45 ACP HP,.45 ACP,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,12/70 Slug,12/70,,,1,1,Tier 1 basic Slug cartridges. Buckshot and slugs are shotgun load types; FMJ/HP are not the usual labels for shot shells.
+Ammo,12/70 Buckshot,12/70,,,1,1,Tier 1 basic Buckshot cartridges. Buckshot and slugs are shotgun load types; FMJ/HP are not the usual labels for shot shells.
+Ammo,5.56×45mm FMJ,5.56×45mm,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,5.56×45mm HP,5.56×45mm,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.62×51mm FMJ,7.62×51mm,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.62×51mm HP,7.62×51mm,,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,.357 Magnum (9×33R) FMJ,.357 Magnum (9×33R),,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,.357 Magnum (9×33R) HP,.357 Magnum (9×33R),,,1,1,Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.92×33mm Kurz FMJ,7.92×33mm Kurz,,,1,1,Tier 1 basic FMJ cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication.
+Ammo,7.92×33mm Kurz HP,7.92×33mm Kurz,,,1,1,"Tier 1 basic HP cartridges. FMJ = ball/full metal jacket; HP = expanding/hollow point. Injury adjustments require GM adjudication. HP is a campaign-equivalent hunting load, not a claim of a widely available military StG-44 issue round."

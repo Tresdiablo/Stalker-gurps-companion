@@ -1,0 +1,61 @@
+TAP version 13
+# Subtest: GM host, player privacy, authoritative loot, attack reports, idempotency, player saves
+ok 1 - GM host, player privacy, authoritative loot, attack reports, idempotency, player saves
+  ---
+  duration_ms: 55.900443
+  type: 'test'
+  ...
+# Subtest: links per profile and retains .gcs source unchanged
+ok 2 - links per profile and retains .gcs source unchanged
+  ---
+  duration_ms: 18.78378
+  type: 'test'
+  ...
+# Subtest: rejects bad IDs, noncharacter documents and broken JSON
+ok 3 - rejects bad IDs, noncharacter documents and broken JSON
+  ---
+  duration_ms: 4.977743
+  type: 'test'
+  ...
+# Subtest: uses bundled gcs.exe before scanning other paths
+ok 4 - uses bundled gcs.exe before scanning other paths
+  ---
+  duration_ms: 3.496904
+  type: 'test'
+  ...
+# Subtest: watches a GCS file and sends profile-specific change notification
+ok 5 - watches a GCS file and sends profile-specific change notification
+  ---
+  duration_ms: 1207.167402
+  type: 'test'
+  ...
+# Subtest: migrates prior beta GCS executable location without touching source
+ok 6 - migrates prior beta GCS executable location without touching source
+  ---
+  duration_ms: 3.857443
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3662.017501
+DESKTOP RENDERER GCS CONTRACT TEST PASSED: {'name': 'Stalker One', 'hash': 'originalhash', 'st': 11, 'linked': True} {'health': 7, 'hash': 'updatedhash', 'skill': 15} errors: []
+INIT True ('4.5 + integrated beta 0.8', 'character', 19) ERR []
+RESULT 14 / 14 ERRORS []
+CONNECTED security True
+ERROR RECOVERY {'page': ['sheetPage'], 'errors': 1}
+--- persisted state ---
+INIT True ('4.5 + integrated beta 0.8', 'dashboard', 19) ERR []
+RESULT 14 / 14 ERRORS []
+CONNECTED security True
+ERROR RECOVERY {'page': ['sheetPage'], 'errors': 1}
+PASS: core startup, Tier 1 catalogue, ammo page moved, NPC editor, encounter templates, hidden/revealed stashes, looting, hover tooltip, targeting, journal
+NPCs 1
+Errors []
+PASS: GM/player role controls, GM combat, six-shot cap, image fallback, every tab, JS errors=0
+Shot cap proof: {'weapon': 'SKS', 'actual': 4, 'requested': 6, 'rounds': 4}

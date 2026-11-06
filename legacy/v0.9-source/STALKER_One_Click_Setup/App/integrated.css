@@ -1,0 +1,47 @@
+/* Supplements the existing Build 4.5 palette. Existing panels and fonts retained. */
+.ext-columns{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(420px,1.6fr);gap:16px;align-items:start}
+.ext-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:12px 0}
+.ext-grid label,.ext-pouch-edit label,.ext-variant-fields label,.ext-line label{display:flex;flex-direction:column;gap:5px;min-width:0}
+.ext-line{display:flex;align-items:end;flex-wrap:wrap;gap:9px;margin:12px 0}
+.ext-line>label{min-width:190px}.ext-line input{max-width:320px}
+.ext-line button,.ext-table-row button{min-height:32px}
+.ext-list{max-height:650px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.ext-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #364555;background:#17232d;border-radius:6px;color:inherit}
+button.ext-row{text-align:left;cursor:pointer;flex-direction:column;align-items:stretch}
+.ext-row small,.ext-review-row small{display:block;color:#aab5c2;font-size:12px}
+.ext-active{outline:1px solid #8aa3b7;background:#253748!important}
+.ext-tag{display:inline-block;background:#24374a;color:#b9d9ed;border:1px solid #3d566d;border-radius:5px;padding:5px 8px;font-size:12px}
+.ext-item-chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.ext-item-chips button{font-size:12px}
+.ext-inspection{padding:10px 0}
+.ext-weapon-preview{display:block;max-width:500px;width:100%;max-height:200px;object-fit:contain;object-position:left center;background:#101820;border-radius:6px}
+.ext-attach-row{margin-top:8px}.ext-attach-row select{max-width:350px}
+.ext-stat-grid{display:flex;flex-wrap:wrap;gap:6px}.ext-stat{padding:6px;border-radius:5px;border:1px solid #44505e;cursor:help}
+.ext-stat.benefit{color:#80bafb}.ext-stat.penalty{color:#ff8d8d}
+.ext-plate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:15px 0}
+.ext-plate{border:1px solid #425568;border-radius:7px;background:#192631;padding:12px;min-width:0}
+.ext-plate>strong{text-transform:uppercase}.ext-plate select{width:100%;margin-bottom:9px}
+.ext-progress{height:7px;background:#0b1219;border-radius:4px;overflow:hidden;margin:10px 0}.ext-progress>div{background:#7299bd;height:100%;transition:width .14s ease}
+.ext-variants{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.ext-variant{border:1px solid #3d4e60;background:#17232d;border-radius:7px;padding:12px}
+.ext-variant img{height:120px;width:100%;object-fit:contain;background:#0d151d}.ext-variant-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+.ext-variant-fields button{min-height:34px}
+.ext-canvas-scroll{overflow:auto;max-width:100%;margin:12px 0;padding:12px;background:#0d1720;border:1px solid #3e5262}
+.ext-pouch-canvas{position:relative;background:#17242f;user-select:none}.ext-cell{position:absolute;width:52px;height:52px;border:1px solid #324353;box-sizing:border-box}
+.ext-pouch{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:start;border:2px solid #a1b6ca;background:rgba(64,91,115,.78);box-sizing:border-box;overflow:hidden;z-index:1}
+.ext-pouch small{padding-top:5px;font-size:12px}.ext-grab{width:100%;padding:5px 0;text-align:center;background:#49627a;cursor:grab;touch-action:none;font-size:11px;font-weight:bold}
+.ext-pouch-editors{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.ext-pouch-edit{background:#17232d;border:1px solid #3f5468;padding:10px;border-radius:6px}.ext-pouch-edit .ext-line label{min-width:55px;flex:1}.ext-pouch-edit input{width:100%}
+.ext-table{margin-top:14px;display:flex;flex-direction:column;gap:5px}.ext-table-row,.ext-head{display:grid;grid-template-columns:2fr .5fr .85fr 1.2fr;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #354859}.ext-head{font-weight:bold;color:#9cb3c6}
+.ext-table-row span{min-width:0;overflow-wrap:anywhere}.ext-table-row button{margin:2px}
+.ext-review{max-height:700px;overflow:auto}.ext-review-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 6px;border-bottom:1px solid #425164}.ext-review-row input{width:82px;display:inline-block;margin:4px}.ext-review-row pre{white-space:pre-wrap;font-size:12px;max-width:100%;max-height:280px;overflow:auto}.ext-review-row details{margin:8px 0}
+.ext-file-label{padding:8px;cursor:pointer}.ext-file-label input{max-width:200px}
+@media(max-width:950px){.ext-columns{grid-template-columns:1fr}.ext-review-row{grid-template-columns:1fr}.ext-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.ext-table-row,.ext-head{grid-template-columns:1.3fr .5fr .6fr 1fr}}
+.carry-ghost{background:rgba(23,37,48,.2);border-color:#83c1ff;padding:0;box-shadow:0 8px 24px #0007}.carry-ghost.invalid{background:rgba(120,33,33,.2)}
+.ext-drag-image{display:block;width:100%;height:100%;object-fit:contain;image-rendering:auto;background:transparent}.ext-drag-count{position:absolute;bottom:1px;right:1px;color:#aad8ff;background:#0c192a;border-radius:4px;padding:2px 5px}
+
+/* The item sprite rotates together with its inventory footprint. */
+.storage-grid .item-art-grid.ext-art-rotated{transform:rotate(90deg);object-fit:contain;transform-origin:center center;max-height:65%;max-width:70%;}
+
+.ext-effective-badge{display:block;font-weight:700;font-size:10px;margin-top:3px}.ext-beneficial-value .ext-effective-badge{color:#78baff}.ext-harmful-value .ext-effective-badge{color:#ec7777}.ext-sell-grid{max-height:280px;overflow:auto;border-top:1px solid #353b3d}
+
+.carry-ghost .carry-item-image{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;pointer-events:none}.carry-ghost .carry-item-image.rotated{transform:rotate(90deg);transform-origin:center}.carry-ghost .carry-empty-image{width:100%;height:100%;background:linear-gradient(145deg,#37454c,#202b30);opacity:.6}

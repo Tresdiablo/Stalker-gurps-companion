@@ -1,0 +1,72 @@
+{
+  "name": "stalker-gurps-companion",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Unified S.T.A.L.K.E.R. GURPS desktop workspace with complete packaged GCS editor",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "desktop": "electron .",
+    "build:win": "electron-builder --win nsis --x64",
+    "test:server": "node --test backend/server.test.cjs",
+    "test:gcs": "node --test desktop/gcs-service.test.cjs",
+    "test": "node --test desktop/gcs-service.test.cjs backend/server.test.cjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "org.stalkergurps.companion",
+    "productName": "STALKER GURPS Companion",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "app.js",
+      "app.css",
+      "companion.js",
+      "navigation.js",
+      "integrated.js",
+      "integrated.css",
+      "ux08.js",
+      "ux08.css",
+      "desktop-clean.css",
+      "gcs-desktop.js",
+      "companion.css",
+      "images/**/*",
+      "desktop/**/*",
+      "backend/**/*",
+      "package.json",
+      "README.md",
+      "TTS/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": false,
+      "allowElevation": false
+    },
+    "artifactName": "STALKER-GURPS-Companion-Setup-${version}.${ext}",
+    "extraResources": [
+      {
+        "from": "vendor/gcs",
+        "to": "gcs",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  }
+}
