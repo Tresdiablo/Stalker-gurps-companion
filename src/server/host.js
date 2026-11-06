@@ -43,8 +43,9 @@ function readBody(req, limit) {
 }
 
 class Host {
-  constructor({ dataDir, port = 7788, bind = '127.0.0.1', resourcesPath = '', appPath = ROOT, legacyDataFile = null, log = console } = {}) {
+  constructor({ dataDir, port = 7788, bind = '127.0.0.1', resourcesPath = '', appPath = ROOT, legacyDataFile = null, log = console, portFallback = false } = {}) {
     this.dataDir = dataDir;
+    this.portFallback = portFallback;
     this.port = port;
     this.bind = bind;
     this.log = log;
@@ -89,7 +90,11 @@ class Host {
 
   listen(bind) {
     return new Promise((resolve, reject) => {
-      const onErr = e => { this.server.off('listening', onOk); reject(e); };
+      const onErr = e => {
+        this.server.off('listening', onOk);
+        if (e.code === 'EADDRINUSE' && this.portFallback && this.port !== 0) { this.log.error?.(`Port ${this.port} is busy; using a free port.`); this.port = 0; this.listen(bind).then(resolve, reject); return; }
+        reject(e);
+      };
       const onOk = () => { this.server.off('error', onErr); this.bindAddress = bind; this.port = this.server.address().port; resolve(); };
       this.server.once('error', onErr);
       this.server.once('listening', onOk);

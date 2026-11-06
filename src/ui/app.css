@@ -103,7 +103,9 @@ table.t tr.sel td { background: #1d3140; }
 .event.awaiting-defense, .event.resolved { border-left-color: var(--warn); }
 .event.applied { border-left-color: var(--good); } .event.ignored, .event.closed { border-left-color: var(--dim); opacity: .85; }
 .event.request { border-left-color: var(--info); } .event.focus { box-shadow: 0 0 0 1px var(--accent); }
-.event > .head { display: flex; gap: 8px; align-items: center; padding: 6px 10px; cursor: pointer; }
+.event > .head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; padding: 6px 10px; cursor: pointer; }
+.event > .head > .grow { min-width: 180px; }
+.event .stage-chip, .event .when { flex: none; }
 .event > .head .title { font-weight: 600; } .event .when { font-size: 11px; color: var(--dim); }
 .event > .bodyx { padding: 4px 10px 8px; }
 .event .lines { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 12.5px; }
@@ -139,7 +141,7 @@ table.t tr.sel td { background: #1d3140; }
 .tile .name { position: absolute; top: 2px; left: 4px; right: 4px; font-size: 10px; color: #dfe9f0; text-shadow: 0 1px 2px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; z-index: 4; }
 .tile .qty { position: absolute; right: 3px; bottom: 1px; font-size: 11px; font-weight: 700; color: #7fc3ff; text-shadow: 0 0 3px #000, 0 1px 1px #000; pointer-events: none; z-index: 4; }
 .tile .rounds { position: absolute; left: 3px; bottom: 1px; font-size: 10px; font-weight: 700; color: #ffe7a8; text-shadow: 0 1px 2px #000; pointer-events: none; z-index: 4; }
-.tile .cond { position: absolute; right: 3px; top: 2px; font-size: 9px; color: var(--warn); z-index: 4; pointer-events: none; }
+.tile .cond { position: absolute; left: 3px; bottom: 12px; font-size: 9px; color: var(--warn); z-index: 4; pointer-events: none; }
 .tile .price { position: absolute; right: 3px; bottom: 1px; font-size: 10px; font-weight: 700; color: var(--accent2); z-index: 4; text-shadow: 0 1px 2px #000; pointer-events: none; }
 .tile .badges { position: absolute; left: 3px; bottom: 13px; display: flex; gap: 2px; z-index: 4; pointer-events: none; }
 .tile .badges span { font-size: 8px; background: #000a; color: #cfe; border-radius: 2px; padding: 0 2px; }

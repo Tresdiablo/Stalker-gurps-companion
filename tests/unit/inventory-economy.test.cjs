@@ -205,3 +205,26 @@ test('jobs pay exactly once; loot from a released NPC can be taken by players', 
   assert.equal(Object.values(s().items).filter(i => i.defId === 'misc-watch').length, 1);
   assert.throws(() => engine.dispatch('item.spawn', { defId: 'misc-watch', to: 'char:' + pc }, player), /Only the GM/);
 });
+
+test('grid sort packs items and merges stacks; character export/import keeps inventory', () => {
+  const { engine, gm, pc } = setup();
+  const s = () => engine.state;
+  const st = Object.values(s().stashes)[0].id;
+  engine.dispatch('item.spawn', { defId: 't1-weapon-sks', target: { p: 'stash:' + st, g: 'main', x: 4, y: 9, r: 0 } }, gm);
+  engine.dispatch('item.spawn', { defId: 'eq-bread', qty: 2, target: { p: 'stash:' + st, g: 'main', x: 9, y: 19, r: 0 } }, gm);
+  engine.dispatch('item.spawn', { defId: 'eq-bread', qty: 2, target: { p: 'stash:' + st, g: 'main', x: 0, y: 19, r: 0 } }, gm);
+  engine.dispatch('item.sortGrid', { ref: 'stash:' + st, grid: 'main' }, gm);
+  const items = inv.childrenOf(s(), 'stash:' + st);
+  assert.equal(items.filter(i => i.defId === 'eq-bread').length, 1, 'stacks merged');
+  assert.deepEqual([items.find(i => i.defId === 't1-weapon-sks').loc.x, items.find(i => i.defId === 't1-weapon-sks').loc.y], [0, 0]);
+  const w = engine.dispatch('item.spawn', { defId: 'builtin-akm-76239', target: { p: 'char:' + pc, slot: 'primary' } }, gm).result.ids[0];
+  const m = engine.dispatch('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc, loadFull: true }, gm).result.ids[0];
+  engine.dispatch('item.insertMag', { weaponId: w, magId: m }, gm);
+  const doc = { format: 'stalker-gurps-character', version: 1, character: s().characters[pc], items: inv.descendants(s(), 'char:' + pc), defs: {} };
+  const id = engine.dispatch('char.importPackage', { doc: JSON.parse(JSON.stringify(doc)) }, gm).result.id;
+  const copy = inv.descendants(s(), 'char:' + id);
+  assert.equal(copy.length, 2);
+  const cw = copy.find(i => i.defId === 'builtin-akm-76239');
+  assert.equal(weapons.roundsAvailable(s(), cw), 30);
+  assert.ok(copy.every(i => !doc.items.some(o => o.id === i.id)), 'new item ids');
+});

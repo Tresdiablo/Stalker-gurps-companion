@@ -20,7 +20,7 @@ const TRADER_TYPES = {
 
 function newTrader(ctx, { name, type = 'general', tier = 1 }) {
   assert(TRADER_TYPES[type], 'Unknown trader type.');
-  return { id: ctx.uid('tr_'), name: String(name || TRADER_TYPES[type].label).slice(0, 80), type, tier: Math.max(1, Math.min(5, Math.floor(tier) || 1)), buyMult: 1, sellMult: 0.5, money: null, grid: { w: 12, h: 30 }, open: false, openFor: [], priceOverrides: {}, notes: '', portrait: null };
+  return { id: ctx.uid('tr_'), name: String(name || TRADER_TYPES[type].label).slice(0, 80), type, tier: Math.max(1, Math.min(5, Math.floor(tier) || 1)), buyMult: 1, sellMult: 0.5, money: null, grid: { w: 12, h: 8 }, open: false, openFor: [], priceOverrides: {}, notes: '', portrait: null };
 }
 
 function getTrader(s, id) { const t = s.traders[id]; if (!t) throw new ActionError('Trader not found.', 'missing'); return t; }
@@ -106,7 +106,7 @@ function placeInTrader(s, t, item) {
   for (let grow = 0; grow < 4; grow++) {
     const spot = inv.findSpot(s, item, 'trader:' + t.id);
     if (spot) { inv.place(s, item, spot); return true; }
-    t.grid.h += 10;
+    t.grid.h += 4;
   }
   return false;
 }

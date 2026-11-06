@@ -9,7 +9,7 @@ function StatBox({ label, value, onRoll, tip }) {
 }
 
 async function pickGcsFile(v, c) {
-  if (window.stalkerDesktop?.pickGcsFile) {
+  if (window.stalkerDesktop?.pickGcsFile && v.role === 'gm') {
     const file = await window.stalkerDesktop.pickGcsFile();
     if (file) return runHost('gcs.link', { charId: c.id, path: file }, { ok: 'Linked to GCS file. Changes saved in GCS now sync automatically.' });
     return;

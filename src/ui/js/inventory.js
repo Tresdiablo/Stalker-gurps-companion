@@ -118,7 +118,7 @@ export function Grid({ v, parentRef, grid, ctx, prices }) {
   const cell = cellPx();
   const items = M.children(v, parentRef).filter(i => i.loc.g === grid.id && !ctx.filter?.(i));
   return html`<div>
-    ${grid.label ? html`<div class="grid-label">${grid.label} <span class="dim">${grid.w}×${grid.h}${grid.accepts?.length ? ` · ${grid.accepts.join(', ')} only` : ''}</span></div>` : null}
+    ${grid.label ? html`<div class="grid-label row">${grid.label} <span class="dim">${grid.w}×${grid.h}${grid.accepts?.length ? ` · ${grid.accepts.join(', ')} only` : ''}</span>${grid.w * grid.h > 4 ? html`<button class="small ghost right" title="Merge stacks and pack items" onClick=${() => run('item.sortGrid', { ref: parentRef, grid: grid.id })}>Sort</button>` : null}</div>` : null}
     <div class="grid" data-drop="grid" data-ref=${parentRef} data-grid=${grid.id} data-w=${grid.w} data-h=${grid.h} style=${{ width: grid.w * cell + 'px', height: grid.h * cell + 'px' }}>
       ${(grid.compartments || []).map(c => html`<div class="comp" style=${{ left: c.x * cell + 'px', top: c.y * cell + 'px', width: c.w * cell + 'px', height: c.h * cell + 'px' }}></div>`)}
       ${items.map(it => html`<${Tile} key=${it.id} v=${v} it=${it} ctx=${ctx} price=${prices?.[it.id]} />`)}

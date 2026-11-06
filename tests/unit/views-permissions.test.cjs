@@ -66,3 +66,21 @@ test('players cannot touch other players characters', () => {
   assert.ok(!v.items[it], "other player's inventory not visible");
   assert.equal(v.characters[pc].session.money, undefined);
 });
+
+test('unrevealed NPC names are redacted from player event titles', () => {
+  const t = setup();
+  const { engine, gm, player, pc } = t;
+  const npc = engine.dispatch('char.create', { name: 'Ghost Sniper', kind: 'npc' }, gm).result.id;
+  engine.dispatch('char.manualBuild', { id: npc, build: { skills: [{ name: 'Guns', spec: 'Rifle', level: 15 }] } }, gm);
+  const enc = engine.dispatch('enc.create', { name: 'Sniped', participants: [pc, npc] }, gm).result.id;
+  engine.dispatch('enc.start', { id: enc }, gm);
+  engine.dispatch('char.manualBuild', { id: npc, build: { skills: [{ name: 'Guns', spec: 'Rifle', level: 15 }] } }, gm);
+  engine.state.characters[npc].build.weapons = [{ id: 'w1', owner: 'Rifle', kind: 'ranged', level: 15, damage: '7d pi', rof: '1', rcl: '2', acc: '5', range: '1000/4000' }];
+  t.queue.push(1, 1, 2);
+  const r = engine.dispatch('combat.attack', { actorId: npc, targetId: pc, weapon: { gcsWeaponId: 'w1' }, range: 300 }, gm);
+  const pv = viewFor(engine.state, player).events[r.eventId];
+  assert.ok(pv, 'the target sees the attack against them');
+  assert.ok(!pv.title.includes('Ghost Sniper'), 'NPC name redacted');
+  assert.equal(pv.attack.effective, undefined, 'NPC effective skill hidden');
+  assert.equal(pv.attack.mods, undefined, 'NPC modifiers hidden');
+});

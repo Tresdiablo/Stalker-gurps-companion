@@ -17,5 +17,49 @@
   "devDependencies": {
     "electron": "^39.0.0",
     "electron-builder": "^26.0.12"
+  },
+  "author": "STALKER GURPS Companion contributors",
+  "build": {
+    "appId": "org.stalkergurps.companion",
+    "productName": "STALKER GURPS Companion",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "data/**/*",
+      "tts/**/*",
+      "package.json",
+      "README.md",
+      "LICENSE*",
+      "docs/**/*",
+      "!**/*.test.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/gcs",
+        "to": "gcs",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": false,
+      "allowElevation": false
+    },
+    "artifactName": "STALKER-GURPS-Companion-Setup-${version}.${ext}"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

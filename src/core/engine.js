@@ -271,6 +271,44 @@ H['item.drop'] = (s, ctx, p, a) => {
   inv.place(s, it, spot);
   return { summary: `${charName(s, root.slice(5))} dropped ${inv.itemName(s, it)}` };
 };
+H['item.sortGrid'] = (s, ctx, p, a) => {
+  if (!isGM(a)) assert(canUseRef(s, a, targetRoot(s, { p: p.ref }), 'put'), 'You cannot sort that storage.');
+  const grid = inv.gridOf(s, p.ref, p.grid);
+  const list = inv.childrenOf(s, p.ref).filter(i => i.loc.g === grid.id);
+  // merge stacks first, then pack largest items first
+  for (const x of list) for (const y of list) if (s.items[x.id] && s.items[y.id] && inv.stackable(s, x, y) && s.items[y.id].qty < inv.defOf(s, y).stack) inv.mergeStacks(s, x, y);
+  const left = list.filter(i => s.items[i.id]).sort((x, y) => { const fx = inv.footprint(s, x, 0), fy = inv.footprint(s, y, 0); return fy.w * fy.h - fx.w * fx.h || String(x.defId).localeCompare(y.defId); });
+  for (const it of left) it.loc = { p: p.ref, g: '__sorting', x: -99, y: -99, r: 0 };
+  for (const it of left) {
+    let spot = null;
+    for (const r of [0, 1]) { for (let y = 0; y < grid.h && !spot; y++) for (let x = 0; x < grid.w && !spot; x++) { const t = { p: p.ref, g: grid.id, x, y, r }; if (inv.canPlace(s, it, t).ok) spot = t; } if (spot) break; }
+    assert(spot, 'Items do not fit after sorting; nothing was changed.');
+    inv.place(s, it, spot);
+  }
+  return { summary: `Sorted ${grid.label || 'storage'}`, quiet: true };
+};
+H['char.importPackage'] = (s, ctx, p, a) => {
+  requireGM(a);
+  const doc = p.doc;
+  assert(doc && doc.format === 'stalker-gurps-character' && doc.character, 'Not a character export file.');
+  let addedDefs = 0;
+  for (const d of Object.values(doc.defs || {})) if (d && !s.defs[d.id]) { s.defs[d.id] = cat.normalizeDef(d); addedDefs++; }
+  const c = structuredClone(doc.character);
+  const oldId = c.id;
+  c.id = ctx.uid(c.kind === 'npc' ? 'npc_' : 'pc_');
+  c.ownerId = null; c.gcs = c.gcs ? { ...c.gcs, path: null } : null;
+  s.characters[c.id] = c;
+  const map = new Map((doc.items || []).map(it => [it.id, ctx.uid('it_')]));
+  for (const it of doc.items || []) {
+    assert(s.defs[it.defId], `Unknown item definition ${it.defId} in the export.`);
+    const n = structuredClone(it); n.id = map.get(it.id);
+    const parent = it.loc.p;
+    n.loc = { ...it.loc, p: parent === 'char:' + oldId ? 'char:' + c.id : 'item:' + map.get(parent.slice(5)) };
+    s.items[n.id] = n;
+  }
+  if (c.kind === 'pc') { const st = { id: ctx.uid('st_'), name: `${c.name}'s stash`, grid: { w: 10, h: 20 }, access: [], hidden: false, ownerCharId: c.id }; s.stashes[st.id] = st; }
+  return { summary: `Imported character ${c.name} (${(doc.items || []).length} items${addedDefs ? `, ${addedDefs} new catalog entries` : ''})`, gmOnly: true, result: { id: c.id } };
+};
 H['item.delete'] = (s, ctx, p, a) => {
   requireGM(a);
   const it = inv.getItem(s, p.itemId);
@@ -440,8 +478,8 @@ H['enc.combatant'] = (s, ctx, p, a) => {
   if (p.clearAim) cs.aim = null;
   return { summary: `Updated ${charName(s, p.charId)} in ${e.name}`, gmOnly: true, quiet: true };
 };
-H['enc.releaseLoot'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); const c = s.characters[p.charId]; assert(c?.kind === 'npc', 'Choose an NPC.'); e.lootReleased = e.lootReleased || []; if (p.release === false) e.lootReleased = e.lootReleased.filter(x => x !== c.id); else if (!e.lootReleased.includes(c.id)) e.lootReleased.push(c.id); if (p.release !== false) c.hidden = false; return { summary: `${p.release === false ? 'Locked' : 'Released'} loot of ${c.name}` }; };
-H['npc.reveal'] = (s, ctx, p, a) => { requireGM(a); const c = s.characters[p.id]; assert(c?.kind === 'npc', 'Choose an NPC.'); c.hidden = !p.reveal; return { summary: `${p.reveal ? 'Revealed' : 'Hid'} ${c.name}`, gmOnly: !p.reveal }; };
+H['enc.releaseLoot'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); const c = s.characters[p.charId]; assert(c?.kind === 'npc', 'Choose an NPC.'); e.lootReleased = e.lootReleased || []; if (p.release === false) e.lootReleased = e.lootReleased.filter(x => x !== c.id); else if (!e.lootReleased.includes(c.id)) e.lootReleased.push(c.id); if (p.release !== false) { c.hidden = false; c.reveal = { ...c.reveal, name: true }; } return { summary: `${p.release === false ? 'Locked' : 'Released'} loot of ${c.name}` }; };
+H['npc.reveal'] = (s, ctx, p, a) => { requireGM(a); const c = s.characters[p.id]; assert(c?.kind === 'npc', 'Choose an NPC.'); c.hidden = !p.reveal; if (p.reveal) c.reveal = { ...c.reveal, name: p.name !== false }; return { summary: `${p.reveal ? 'Revealed' : 'Hid'} ${c.name}`, gmOnly: !p.reveal }; };
 
 /* ---------- combat */
 function canActFor(s, a, charId) { const c = s.characters[charId]; assert(c, 'Character not found.'); if (c.kind === 'npc') requireGM(a); else requireOwn(s, a, charId); return c; }

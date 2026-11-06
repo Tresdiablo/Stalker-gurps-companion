@@ -75,7 +75,9 @@ function eventForPlayer(s, ev, myChars) {
   const target = s.characters[ev.targetId];
   const npcActor = actor?.kind === 'npc', npcTarget = target?.kind === 'npc';
   if (npcActor && actor.hidden && !mineTarget) return null;
-  const out = { id: ev.id, seq: ev.seq, at: ev.at, round: ev.round, kind: ev.kind, actorId: ev.actorId, targetId: ev.targetId, encounterId: ev.encounterId, title: ev.title, stage: ev.stage, visibility: ev.visibility };
+  let title = ev.title;
+  for (const c of [actor, target]) if (c?.kind === 'npc' && c.reveal?.name === false) title = title.split(c.name).join('Unknown');
+  const out = { id: ev.id, seq: ev.seq, at: ev.at, round: ev.round, kind: ev.kind, actorId: ev.actorId, targetId: ev.targetId, encounterId: ev.encounterId, title, stage: ev.stage, visibility: ev.visibility };
   out.notifications = (ev.notifications || []).filter(n => myChars.has(n.to));
   if (ev.kind === 'skill') {
     if (!mineActor && actor?.kind === 'npc') return null;

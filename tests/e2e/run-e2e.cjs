@@ -152,6 +152,49 @@ const gm = { role: 'gm' };
   await P.waitForTimeout(300);
   await shot(P, '4b-weapon-with-scope');
 
+  // ---------------- Drag and drop: ammo from the ground onto a magazine; item into a pocket
+  const inv = require('../../src/core/inventory');
+  const spare = Object.values(s().items).find(i => i.defId === 'mag-ak762-30' && i.id !== mag && inv.rootOf(s(), i) === 'char:' + pc);
+  d('item.unload', { holderId: spare.id });
+  const watch = d('item.spawn', { defId: 'misc-watch', target: { p: 'char:' + pc, g: 'ground', x: 6, y: 6, r: 0 } }).result.ids[0];
+  const ammoStack = Object.values(s().items).find(i => i.defId === 't1-ammo-7-62-39mm-fmj' && inv.rootOf(s(), i) === 'char:' + pc);
+  if (ammoStack.loc.g !== 'ground') d('item.move', { itemId: ammoStack.id, target: { p: 'char:' + pc, g: 'ground', x: 0, y: 7, r: 0 } });
+  await P.click('.nav button:has-text("Inventory")');
+  const dragTo = async (fromSel, toSel, dx = 8, dy = 8) => {
+    const a = await P.locator(fromSel).boundingBox(), b = await P.locator(toSel).boundingBox();
+    await P.mouse.move(a.x + 10, a.y + 10); await P.mouse.down();
+    await P.mouse.move(a.x + 30, a.y + 30, { steps: 4 }); await P.mouse.move(b.x + dx, b.y + dy, { steps: 8 }); await P.mouse.up();
+  };
+  await dragTo(`.tile[data-item="${ammoStack.id}"]`, `.tile[data-item="${spare.id}"]`);
+  await waitFor(() => (s().items[spare.id].rounds || []).reduce((a, [, n]) => a + n, 0) === 30);
+  await dragTo(`.tile[data-item="${watch}"]`, '.grid[data-grid="pockets"]', 52, 8);
+  await waitFor(() => s().items[watch].loc.g === 'pockets');
+  console.log('Drag & drop OK: loaded a magazine by dropping ammo; moved an item into a pocket');
+  // context menu: unload via right-click
+  await P.click(`.tile[data-item="${spare.id}"]`, { button: 'right' });
+  await P.click('.ctx .it:has-text("Unload ammo")');
+  await waitFor(() => !(s().items[spare.id].rounds || []).length);
+  await P.click(`.tile[data-item="${spare.id}"]`, { button: 'right' });
+  await P.click('.ctx .it:has-text("Quick load")');
+  await waitFor(() => (s().items[spare.id].rounds || []).reduce((a, [, n]) => a + n, 0) === 30);
+  console.log('Context menu OK: unload and quick load');
+
+  // ---------------- Trader: GM generates and opens a shop; player buys an item
+  const tr = d('trader.save', { name: 'Field Medic', type: 'medic', tier: 2 }).result.id;
+  d('trader.generate', { id: tr });
+  d('trader.open', { id: tr, charIds: [pc] });
+  d('char.money', { id: pc, delta: 20000 });
+  await P.click('.nav button:has-text("Trader")');
+  const stock = inv.childrenOf(s(), 'trader:' + tr).find(i => i.qty === 1) || inv.childrenOf(s(), 'trader:' + tr)[0];
+  const moneyBefore = s().characters[pc].session.money;
+  await P.click(`.tile[data-item="${stock.id}"]`, { button: 'right' });
+  await P.click('.ctx .it:has-text("Buy")');
+  if (stock.qty > 1) await P.click('.modal button:has-text("OK")');
+  await waitFor(() => s().characters[pc].session.money < moneyBefore);
+  assert.ok(inv.ownedItems(s(), pc).some(i => i.defId === stock.defId), 'purchase delivered to inventory');
+  await shot(P, '5-trader');
+  console.log('Trader OK: bought', s().defs[stock.defId].name, 'for', moneyBefore - s().characters[pc].session.money, 'RU');
+
   assert.deepEqual(errors, [], 'no browser errors');
   console.log('E2E PASSED');
   await browser.close();
