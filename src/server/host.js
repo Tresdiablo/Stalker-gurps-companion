@@ -43,8 +43,9 @@ function readBody(req, limit) {
 }
 
 class Host {
-  constructor({ dataDir, port = 7788, bind = '127.0.0.1', resourcesPath = '', appPath = ROOT, legacyDataFile = null, log = console, portFallback = false } = {}) {
+  constructor({ dataDir, port = 7788, bind = '127.0.0.1', resourcesPath = '', appPath = ROOT, legacyDataFile = null, log = console, portFallback = false, maxPeople = 8 } = {}) {
     this.dataDir = dataDir;
+    this.maxPeople = maxPeople; // simultaneous people, GM included
     this.portFallback = portFallback;
     this.port = port;
     this.bind = bind;
@@ -163,7 +164,9 @@ class Host {
   }
 
   hostInfo(session) {
-    const base = { port: this.port, lan: this.bindAddress === '0.0.0.0', notes: this.systemNotes.slice(-20) };
+    const on = this.online();
+    const people = [...on.keys()].map(k => (k === 'gm' ? { role: 'gm', name: 'GM' } : { role: 'player', playerId: k.slice(7), name: this.current.state.players[k.slice(7)]?.name || 'Player' }));
+    const base = { port: this.port, lan: this.bindAddress === '0.0.0.0', notes: this.systemNotes.slice(-20), online: people, maxPeople: this.maxPeople };
     if (session.role !== 'gm') return { ...base, notes: this.systemNotes.filter(n => n.public).slice(-10) };
     return { ...base, gcs: this.gcs.status(), tts: this.tts.status(), ttsSelection: this.ttsSelection, campaigns: this.store.list(), recovery: this.current.recovery, addresses: this.lanAddresses(), legacyAvailable: !!(this.legacyDataFile && fs.existsSync(this.legacyDataFile)) };
   }
@@ -241,11 +244,12 @@ class Host {
     if (p.startsWith('/seed/')) return this.file(res, path.join(ROOT, 'data', 'seed', 'images', p.slice(6)), path.join(ROOT, 'data', 'seed', 'images'), 86400);
     if (p === '/tts/Global.lua') return this.file(res, path.join(ROOT, 'tts', 'Global.lua'));
     const session = this.sessionFromReq(req);
-    if (p === '/api/whoami') return this.json(res, 200, { session: session ? { role: session.role, playerId: session.playerId || null } : null, campaign: this.current?.state.name, players: Object.values(this.current?.state.players || {}).filter(x => x.codeHash).map(x => ({ id: x.id, name: x.name })) });
+    if (p === '/api/whoami') return this.json(res, 200, { online: this.online().size, maxPeople: this.maxPeople, session: session ? { role: session.role, playerId: session.playerId || null } : null, campaign: this.current?.state.name, players: Object.values(this.current?.state.players || {}).filter(x => x.codeHash).map(x => ({ id: x.id, name: x.name })) });
     if (p === '/api/login' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}');
       const pl = this.current.state.players[body.playerId];
       if (!pl || !checkCode(body.code || '', pl.codeHash)) return this.json(res, 403, { error: 'Unknown player or wrong join code.' });
+      if (this.wouldExceed({ role: 'player', playerId: pl.id })) return this.json(res, 403, { error: `The session is full (${this.maxPeople} people connected). Ask the GM.` });
       const t = token(); this.sessions.set(t, { role: 'player', playerId: pl.id }); this.cookie(res, t);
       return this.json(res, 200, { ok: true });
     }
@@ -339,14 +343,36 @@ class Host {
   }
 
   /* ------------------------------------------------------------- WebSocket */
+  /** People currently connected (the GM once, each player once, however many windows). */
+  personKey(session) { return session.role === 'gm' ? 'gm' : 'player:' + session.playerId; }
+  online() {
+    const seen = new Map();
+    for (const c of this.clients) if (c.ws.readyState <= 1) { const k = this.personKey(c.session); seen.set(k, (seen.get(k) || 0) + 1); }
+    return seen;
+  }
+  /**
+   * True when a new person (not already connected) would exceed the limit. One seat is always
+   * reserved for the GM, so up to maxPeople - 1 players can join.
+   */
+  wouldExceed(session) {
+    if (session.role === 'gm') return false;
+    const on = this.online();
+    const players = [...on.keys()].filter(k => k !== 'gm').length;
+    return !on.has(this.personKey(session)) && players >= this.maxPeople - 1;
+  }
+
   connection(ws, session) {
+    if (this.wouldExceed(session)) {
+      ws.send(JSON.stringify({ type: 'full', max: this.maxPeople }));
+      return ws.close(4001, 'Session full');
+    }
     const c = { ws, session, alive: true };
     this.clients.add(c);
     ws.on('message', raw => this.message(c, raw));
-    ws.on('close', () => this.clients.delete(c));
+    ws.on('close', () => { this.clients.delete(c); this.scheduleBroadcast(); });
     ws.on('pong', () => { c.alive = true; });
     ws.send(JSON.stringify({ type: 'hello', role: session.role, playerId: session.playerId || null }));
-    this.sendView(c);
+    this.scheduleBroadcast(); // everyone's online list updates
   }
 
   async message(c, raw) {

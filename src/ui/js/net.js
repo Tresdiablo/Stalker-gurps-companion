@@ -19,6 +19,7 @@ function connect() {
   ws.onmessage = ev => {
     const m = JSON.parse(ev.data);
     if (m.type === 'hello') { conn.role = m.role; conn.playerId = m.playerId; }
+    else if (m.type === 'full') { conn.full = m.max; }
     else if (m.type === 'view') { conn.view = m.view; emit(); }
     else if (m.type === 'result') {
       const p = pending.get(m.reqId);
@@ -28,6 +29,7 @@ function connect() {
     }
   };
   ws.onclose = ev => {
+    if (ev.code === 4001) { conn.status = 'full'; conn.full = conn.full || 8; emit(); setTimeout(connect, 10000); return; }
     conn.status = ev.code === 1006 && !conn.view ? 'unauthorized' : 'offline'; emit();
     setTimeout(connect, retryDelay); retryDelay = Math.min(8000, retryDelay * 2);
   };

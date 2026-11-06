@@ -23,6 +23,7 @@ const gm = { role: 'gm' };
   await host.start();
   const d = (a, p) => host.dispatch(a, p, gm);
   // --- campaign setup (what the GM would do in the Character/NPC managers)
+  d('def.loadStarter', {}); // new campaigns start with an empty catalog
   const pid = d('player.save', { name: 'Ivan (player)' }).result.id;
   const pc = d('char.create', { name: 'Stalker Ivan', kind: 'pc', ownerId: pid }).result.id;
   d('char.manualBuild', { id: pc, build: { st: 11, dx: 12, iq: 11, ht: 11, hp: 11, fp: 11, basicSpeed: 5.75, basicMove: 5, dodge: 8, skills: [{ name: 'Guns', spec: 'Rifle', level: 14 }, { name: 'Lockpicking', spec: '', level: 12 }] } });
@@ -47,8 +48,12 @@ const gm = { role: 'gm' };
   const G = await gmCtx.newPage(), P = await plCtx.newPage();
   const errors = [];
   for (const [n, pg] of [['GM', G], ['Player', P]]) { pg.on('pageerror', e => errors.push(`${n}: ${e.message}`)); pg.on('console', m => m.type() === 'error' && errors.push(`${n} console: ${m.text()}`)); }
-  await G.goto(host.url()); await G.waitForSelector('.nav');
-  await P.goto(host.playerLink(pid)); await P.waitForSelector('.nav');
+  await G.goto(host.url()); await G.waitForSelector('.start');
+  await G.screenshot({ path: path.join(OUT, '0a-gm-start-screen.png') });
+  await G.click('button:has-text("Enter campaign")'); await G.waitForSelector('.nav');
+  await P.goto(host.playerLink(pid)); await P.waitForSelector('.start');
+  await P.screenshot({ path: path.join(OUT, '0b-player-start-screen.png') });
+  await P.click('.start .list-item:has-text("Stalker Ivan")'); await P.waitForSelector('.nav');
   const shot = (pg, name) => pg.screenshot({ path: path.join(OUT, name + '.png') });
 
   // ---------------- Scenario 1: player attacks Bandit 1

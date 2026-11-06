@@ -376,6 +376,24 @@ H['def.save'] = (s, ctx, p, a) => {
 };
 H['def.delete'] = (s, ctx, p, a) => { requireGM(a); assert(s.defs[p.id], 'Not found.'); const n = Object.values(s.items).filter(i => i.defId === p.id).length; assert(!n, `${n} item(s) of this kind exist. Delete them first.`); const name = s.defs[p.id].name; delete s.defs[p.id]; return { summary: `Deleted catalog item ${name}`, gmOnly: true }; };
 H['def.duplicate'] = (s, ctx, p, a) => { requireGM(a); const d = s.defs[p.id]; assert(d, 'Not found.'); const copy = JSON.parse(JSON.stringify(d)); copy.id = ctx.uid('def_'); copy.name = `${d.name} (copy)`; delete copy.legacyId; s.defs[copy.id] = cat.normalizeDef(copy); return { summary: `Duplicated ${d.name}`, gmOnly: true, result: { id: copy.id } }; };
+H['def.loadStarter'] = (s, ctx, p, a) => {
+  requireGM(a);
+  const r = campaign.addStarterCatalog(s);
+  return { summary: `Loaded starter catalog: ${r.defs} items, ${r.recipes} recipes, ${r.templates} NPC loadouts`, gmOnly: true, result: r };
+};
+H['def.deleteUnused'] = (s, ctx, p, a) => {
+  requireGM(a);
+  const used = new Set();
+  for (const it of Object.values(s.items)) { used.add(it.defId); for (const [x] of it.rounds || []) used.add(x); if (it.chamber) used.add(it.chamber); }
+  let removed = 0;
+  for (const id of Object.keys(s.defs)) if (!used.has(id)) { delete s.defs[id]; removed++; }
+  for (const [id, r] of Object.entries(s.recipes)) if ([...r.inputs.map(x => x.defId), ...(r.tools || []), r.output?.defId].filter(Boolean).some(d => !s.defs[d])) delete s.recipes[id];
+  for (const t of Object.values(s.npcTemplates)) {
+    t.loadout = (t.loadout || []).map(l => ({ ...l, options: (l.options || []).filter(o => s.defs[typeof o === 'string' ? o : o.defId]) })).filter(l => l.options.length);
+    t.loot = (t.loot || []).filter(l => s.defs[l.defId]);
+  }
+  return { summary: `Removed ${removed} unused catalog item${removed === 1 ? '' : 's'}${used.size ? ` (kept ${Object.keys(s.defs).length} in use)` : ''}`, gmOnly: true, result: { removed, kept: Object.keys(s.defs).length } };
+};
 H['def.import'] = (s, ctx, p, a) => {
   requireGM(a);
   const list = Array.isArray(p.defs) ? p.defs : [];

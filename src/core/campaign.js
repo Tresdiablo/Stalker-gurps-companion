@@ -36,7 +36,11 @@ function defaultSettings() {
   };
 }
 
-function emptyCampaign(ctx, { name = 'S.T.A.L.K.E.R. Campaign', seedContent = true, test = false } = {}) {
+/**
+ * New campaign. The item catalog starts EMPTY unless seedCatalog is set; the built-in starter
+ * catalog can be added later from the Item Catalog ("Load starter catalog").
+ */
+function emptyCampaign(ctx, { name = 'S.T.A.L.K.E.R. Campaign', seedContent = true, seedCatalog = false, test = false } = {}) {
   const s = {
     schema: SCHEMA_VERSION,
     id: ctx.uid('cmp_'),
@@ -68,12 +72,32 @@ function emptyCampaign(ctx, { name = 'S.T.A.L.K.E.R. Campaign', seedContent = tr
     meta: { processed: {}, seq: 0 },
   };
   if (seedContent) {
-    s.defs = seed.buildDefs();
-    for (const t of seed.NPC_TEMPLATES) s.npcTemplates[t.id] = JSON.parse(JSON.stringify(t));
-    for (const r of seed.RECIPES) s.recipes[r.id] = { enabled: true, ...JSON.parse(JSON.stringify(r)) };
+    for (const t of seed.NPC_TEMPLATES) {
+      const copy = JSON.parse(JSON.stringify(t));
+      if (!seedCatalog) { copy.loadout = []; copy.loot = []; } // gear refers to catalog items
+      s.npcTemplates[t.id] = copy;
+    }
     for (const p of seed.PERKS) s.perks[p.id] = { ...p };
+    if (seedCatalog) addStarterCatalog(s);
   }
   return s;
+}
+
+/**
+ * Add the built-in starter catalog (Tier 1 weapons, magazines, ammunition, armor, medical,
+ * artifacts, attachments, containers), its recipes and the NPC template gear. Existing
+ * definitions with the same id are left untouched. Returns counts.
+ */
+function addStarterCatalog(s) {
+  let defs = 0, recipes = 0, templates = 0;
+  for (const [id, d] of Object.entries(seed.buildDefs())) if (!s.defs[id]) { s.defs[id] = d; defs++; }
+  for (const r of seed.RECIPES) if (!s.recipes[r.id]) { s.recipes[r.id] = { enabled: true, ...JSON.parse(JSON.stringify(r)) }; recipes++; }
+  for (const t of seed.NPC_TEMPLATES) {
+    const cur = s.npcTemplates[t.id];
+    if (!cur) { s.npcTemplates[t.id] = JSON.parse(JSON.stringify(t)); templates++; }
+    else if (!(cur.loadout || []).length && !(cur.loot || []).length) { cur.loadout = JSON.parse(JSON.stringify(t.loadout)); cur.loot = JSON.parse(JSON.stringify(t.loot)); templates++; }
+  }
+  return { defs, recipes, templates };
 }
 
 /** Upgrade older campaign files in place. */
@@ -90,4 +114,4 @@ function migrate(s) {
   return report;
 }
 
-module.exports = { SCHEMA_VERSION, DEFAULT_RULES, defaultSettings, emptyCampaign, migrate };
+module.exports = { SCHEMA_VERSION, DEFAULT_RULES, defaultSettings, emptyCampaign, addStarterCatalog, migrate };

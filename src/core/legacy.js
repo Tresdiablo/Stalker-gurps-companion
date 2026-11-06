@@ -76,7 +76,9 @@ function mountIface(m) {
  * @returns {{ state: object, report: { migrated: string[], notTransferred: string[], warnings: string[] } }}
  */
 function migrateLegacy(keys, { name = 'Migrated campaign', ctx = new Context() } = {}) {
-  const s = campaign.emptyCampaign(ctx, { name });
+  // the starter catalog is used only to resolve legacy item ids; unused entries are pruned at the end
+  const s = campaign.emptyCampaign(ctx, { name, seedCatalog: true });
+  const starterIds = new Set(Object.keys(s.defs));
   const report = { migrated: [], notTransferred: [], warnings: [] };
   const legacyImages = new Set();
   const index = parseJson(keys[KEYS.index]);
@@ -166,7 +168,21 @@ function migrateLegacy(keys, { name = 'Migrated campaign', ctx = new Context() }
   for (const h of (gm.history || []).slice(0, 300).reverse()) s.log.unshift({ id: ctx.uid('log_'), at: h.when || ctx.now(), who: 'GM', role: 'gm', action: 'legacy', summary: `[legacy] ${h.kind}: ${h.details}`, gmOnly: true });
   if ((gm.integrated?.transactions || []).length) report.warnings.push(`${gm.integrated.transactions.length} legacy trader transactions were kept only in the campaign log text.`);
   if ((gm.checkpoints || []).length || (gm.integrated?.snapshots || []).length) report.notTransferred.push('Legacy in-browser checkpoints/snapshots are not converted (they hold old-format data). The original save file is untouched and can still be restored in the old build.');
+  pruneUnusedStarter(s, starterIds);
   return { state: s, report, legacyImages: [...legacyImages] };
+}
+
+/** Keep only starter definitions that migrated items, NPC gear, trader stock or recipes actually use. */
+function pruneUnusedStarter(s, starterIds) {
+  const used = new Set();
+  for (const it of Object.values(s.items)) { used.add(it.defId); for (const [a] of it.rounds || []) used.add(a); if (it.chamber) used.add(it.chamber); }
+  for (const t of Object.values(s.npcTemplates)) if (String(t.id).startsWith('tpl-legacy-')) for (const l of t.loadout || []) for (const o of l.options || []) used.add(typeof o === 'string' ? o : o.defId);
+  for (const id of starterIds) if (!used.has(id)) delete s.defs[id];
+  for (const [id, r] of Object.entries(s.recipes)) if ([...r.inputs.map(x => x.defId), ...(r.tools || []), r.output?.defId].filter(Boolean).some(d => !s.defs[d])) delete s.recipes[id];
+  for (const t of Object.values(s.npcTemplates)) {
+    t.loadout = (t.loadout || []).map(l => ({ ...l, options: (l.options || []).filter(o => s.defs[typeof o === 'string' ? o : o.defId]) })).filter(l => l.options.length);
+    t.loot = (t.loot || []).filter(l => s.defs[l.defId]);
+  }
 }
 
 function num(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }

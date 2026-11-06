@@ -228,3 +228,24 @@ test('grid sort packs items and merges stacks; character export/import keeps inv
   assert.equal(weapons.roundsAvailable(s(), cw), 30);
   assert.ok(copy.every(i => !doc.items.some(o => o.id === i.id)), 'new item ids');
 });
+
+test('new campaigns start with an empty catalog; starter catalog can be loaded and unused items removed', () => {
+  const campaign = require('../../src/core/campaign');
+  const { Context } = require('../../src/core/context');
+  const { Engine } = require('../../src/core/engine');
+  const e = new Engine(campaign.emptyCampaign(new Context(), { name: 'Fresh' }));
+  const gm = { role: 'gm' };
+  assert.equal(Object.keys(e.state.defs).length, 0, 'catalog empty');
+  assert.equal(Object.keys(e.state.recipes).length, 0);
+  assert.ok(Object.values(e.state.npcTemplates).every(t => !t.loadout.length), 'templates carry no gear');
+  const r = e.dispatch('def.loadStarter', {}, gm).result;
+  assert.ok(r.defs > 100);
+  assert.ok(Object.values(e.state.npcTemplates).some(t => t.loadout.length), 'template gear restored');
+  const pc = e.dispatch('char.create', { name: 'A', kind: 'pc' }, gm).result.id;
+  e.dispatch('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc, loadFull: true }, gm);
+  const del = e.dispatch('def.deleteUnused', {}, gm).result;
+  assert.deepEqual(Object.keys(e.state.defs).sort(), ['mag-ak762-30', 't1-ammo-7-62-39mm-fmj'].sort(), 'only items in use (and their loaded ammo) remain');
+  assert.equal(del.kept, 2);
+  assert.ok(Object.values(e.state.npcTemplates).every(t => t.loadout.every(l => l.options.length)));
+  assert.throws(() => e.dispatch('def.deleteUnused', {}, { role: 'player', playerId: 'x' }), /Only the GM/);
+});

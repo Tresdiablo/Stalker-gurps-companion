@@ -95,7 +95,7 @@ It also reports precisely what could not be transferred. One example: images sto
 ## Tests
 
 ```
-npm test                 # 38 unit/integration tests (rules, combat pipeline, inventory, traders,
+npm test                 # 41 unit/integration tests (rules, combat pipeline, inventory, traders,
                          # crafting, permissions, views, storage & crash recovery, host, GCS, TTS, migration)
 node tests/e2e/run-e2e.cjs  # browser end-to-end: the three required combat demonstrations,
                             # drag-and-drop, context menus and a trader purchase (needs Playwright + Chromium)

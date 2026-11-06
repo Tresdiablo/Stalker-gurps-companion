@@ -12,7 +12,7 @@ class QueueContext extends Context {
 function setup({ dice = [] } = {}) {
   const queue = dice;
   let n = 0;
-  const base = campaign.emptyCampaign(new Context({ idgen: () => 'seed' + (++n), clock: () => '2026-01-01T00:00:00.000Z' }), { name: 'Test Campaign', test: true });
+  const base = campaign.emptyCampaign(new Context({ idgen: () => 'seed' + (++n), clock: () => '2026-01-01T00:00:00.000Z' }), { name: 'Test Campaign', test: true, seedCatalog: true });
   const journal = [];
   const engine = new Engine(base, { journal: e => journal.push(e), contextFactory: opts => opts.replay ? new Context(opts) : new QueueContext(queue) });
   const gm = { role: 'gm' };

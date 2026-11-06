@@ -102,3 +102,43 @@ function client(port, cookie) {
     ws.on('error', reject);
   });
 }
+
+test('host allows at most 8 people at once (GM + 7 players); extra windows of one person count once', async () => {
+  const host = new Host({ dataDir: tmp(), port: 0, log: { error() {} } });
+  await host.start();
+  const base = `http://127.0.0.1:${host.port}`;
+  const gmCookie = (await fetch(`${base}/?gm=${host.gmToken}`, { redirect: 'manual' })).headers.get('set-cookie').split(';')[0];
+  const gm = await client(host.port, gmCookie);
+  const cookies = [];
+  for (let i = 0; i < 8; i++) {
+    const id = (await gm.call('action', { action: 'player.save', payload: { name: 'P' + i } })).result.id;
+    await gm.host('player.code', { playerId: id, code: 'code-' + i });
+    const r = await fetch(`${base}/api/login`, { method: 'POST', body: JSON.stringify({ playerId: id, code: 'code-' + i }) });
+    if (i < 7) {
+      assert.equal(r.status, 200);
+      const cookie = r.headers.get('set-cookie').split(';')[0];
+      cookies.push({ cookie, c: await client(host.port, cookie) });
+    } else {
+      assert.equal(r.status, 403, '8th player refused at login');
+      assert.match((await r.json()).error, /full/);
+    }
+  }
+  await gm.waitView(v => v.host.online.length === 8);
+  // a second window of an already-connected player is fine
+  const extra = await client(host.port, cookies[0].cookie);
+  await new Promise(r => setTimeout(r, 100));
+  assert.equal(host.online().size, 8);
+  // a 9th person is refused at the WebSocket too (session minted before the room filled)
+  cookies[6].c.close();
+  await new Promise(r => setTimeout(r, 100));
+  const id9 = (await gm.call('action', { action: 'player.save', payload: { name: 'Late' } })).result.id;
+  const t9 = host.playerLink(id9);
+  const ck9 = (await fetch(t9, { redirect: 'manual' })).headers.get('set-cookie').split(';')[0];
+  const reopen = await client(host.port, cookies[6].cookie); // seat 7 taken again
+  await new Promise(r => setTimeout(r, 100));
+  const closed = await new Promise(res => { const ws = new WebSocket(`ws://127.0.0.1:${host.port}/ws`, { headers: { cookie: ck9 } }); ws.on('close', code => res(code)); });
+  assert.equal(closed, 4001);
+  assert.equal(gm.view.host.maxPeople, 8);
+  for (const x of cookies) x.c.close(); extra.close(); reopen.close(); gm.close();
+  await host.stop();
+});

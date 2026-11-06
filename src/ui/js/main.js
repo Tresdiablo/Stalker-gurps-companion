@@ -10,6 +10,7 @@ import { PlayerDashboard, PlayerTrader, PlayerCrafting } from './player.js';
 import { GmDashboard } from './gm-dashboard.js';
 import { NpcManager, EncounterManager, CharacterManager, TraderManager, CampaignManager, Settings } from './gm-manage.js';
 import { Catalog } from './gm-catalog.js';
+import { StartScreen } from './start.js';
 
 const PLAYER_PAGES = [['dash', 'Dashboard'], ['character', 'Character / GCS'], ['inventory', 'Inventory'], ['equipment', 'Equipment'], ['combat', 'Combat'], ['trader', 'Trader'], ['crafting', 'Crafting / Jobs']];
 const GM_PAGES = [['gm-dash', 'GM Dashboard'], ['encounters', 'Encounters'], ['npcs', 'NPC Manager'], ['characters', 'Characters'], ['catalog', 'Item Catalog'], ['traders', 'Traders'], ['campaign', 'Campaign'], ['settings', 'Settings']];
@@ -28,7 +29,7 @@ function Login() {
   useEffect(() => { whoami().then(setInfo).catch(() => setErr('Cannot reach the host.')); }, []);
   const go = async () => { try { await login(pid || info.players[0]?.id, code); location.reload(); } catch (e) { setErr(e.message); } };
   return html`<div class="login panel"><header><h2>S.T.A.L.K.E.R. / GURPS — join campaign</h2></header><div class="body col">
-    <div class="muted">${info?.campaign || ''}</div>
+    <div class="muted">${info?.campaign || ''}${info ? ` · ${info.online}/${info.maxPeople} people online` : ''}</div>
     ${info?.players?.length ? html`<label class="field">Player<select value=${pid} onChange=${e => setPid(e.target.value)}>${info.players.map(p => html`<option value=${p.id}>${p.name}</option>`)}</select></label>
       <label class="field">Join code<input type="password" value=${code} onInput=${e => setCode(e.target.value)} onKeyDown=${e => e.key === 'Enter' && go()} /></label>
       <button class="primary" onClick=${go}>Join</button>` : html`<div class="muted">No player can join remotely yet. The GM sets join codes under Campaign → Players.</div>`}
@@ -45,6 +46,9 @@ function App() {
   const [selected, setSelected] = useState(null);
   const [weaponId, setWeaponId] = useState(null);
   const [mode, setMode] = useLocal('mode', 'gm'); // GM can switch to the player-style pages for any PC
+  const [started, setStarted] = useState(() => { try { return sessionStorage.getItem('sgc:started') === '1'; } catch { return false; } });
+  const enter = charId => { if (charId) setCharSel(charId); try { sessionStorage.setItem('sgc:started', '1'); } catch { /* ignore */ } setStarted(true); };
+  const toStart = () => { try { sessionStorage.removeItem('sgc:started'); } catch { /* ignore */ } setStarted(false); };
   useEffect(() => {
     const zoom = Number(localStorage.getItem('sgc:zoom') || 1); document.documentElement.style.setProperty('--zoom', zoom);
     const key = e => {
@@ -58,6 +62,7 @@ function App() {
     return () => window.removeEventListener('keydown', key);
   }, []);
   useEffect(() => { const notes = conn.view?.host?.notes || []; const last = notes[notes.length - 1]; if (last && last.id !== window.__lastNote) { if (window.__lastNote !== undefined || last.kind === 'recovery') toast(last.text, last.kind === 'recovery' ? 'ok' : 'info'); window.__lastNote = last.id; } });
+  if (c.status === 'full') return html`<div class="login panel"><header><h2>Session full</h2></header><div class="body col"><div>${c.full || 8} people are already connected (the GM plus ${(c.full || 8) - 1} players). You will be let in automatically when someone leaves.</div><div class="tiny dim">Retrying every 10 seconds…</div></div></div>`;
   if (c.status === 'unauthorized' && !v) return html`<${Login} />`;
   if (!v) return html`<div class="boot">S.T.A.L.K.E.R. / GURPS — ${c.status === 'offline' ? 'host offline, retrying…' : 'connecting…'}</div>`;
 
@@ -89,13 +94,16 @@ function App() {
     default: body = null;
   }
   const tts = v.host?.tts;
+  if (!started) return html`<div><${StartScreen} v=${v} onEnter=${enter} /><${Toasts} /><${Modals} /><${ContextMenu} /><${Tooltip} /></div>`;
+  const online = v.host?.online || [];
   return html`<div class="shell">
     <div class="topbar">
-      <div class="brand">S.T.A.L.K.E.R. / GURPS<small>COMPANION</small></div>
+      <div class="brand" style=${{ cursor: 'pointer' }} onClick=${toStart} title="Back to the start screen">S.T.A.L.K.E.R. / GURPS<small>COMPANION</small></div>
       <span class="campaign-name">${v.name}</span>${v.test ? html`<span class="test-badge">TEST CAMPAIGN</span>` : null}
       <span class="grow"></span>
       ${mine.length && playerMode ? html`<label class="row small">Character <select value=${charId || ''} onChange=${e => setCharSel(e.target.value)}>${mine.map(x => html`<option value=${x.id}>${x.name}</option>`)}</select></label>` : null}
       ${gm ? html`<div class="tabs"><button class=${!playerMode ? 'active' : ''} onClick=${() => { setMode('gm'); setPage('gm-dash'); }}>Game Master</button><button class=${playerMode ? 'active' : ''} onClick=${() => { setMode('player'); setPage('inventory'); }} ...${tipProps('View any player character through the player pages (GM permissions still apply).')}>Player view</button></div>` : html`<span class="chip info">${v.playerName}</span>`}
+      <span class="chip ${online.length >= (v.host?.maxPeople || 8) ? 'warn' : ''}" ...${tipProps(`Connected now:\n${online.map(p => p.name).join('\n') || '—'}\nLimit: ${v.host?.maxPeople || 8} people (GM included)`)}>👥 ${online.length}/${v.host?.maxPeople || 8}</span>
       <span class="row small" ...${tipProps(`Host: ${c.status}${gm ? `\nTabletop Simulator: ${tts?.enabled ? (tts.reachable ? 'connected' : 'not reachable') : 'off'}${v.host?.lan ? `\nHosting for other computers on port ${v.host.port}` : ''}` : ''}`)}><span class="status-dot ${c.status === 'online' ? 'on' : 'off'}"></span>${gm ? html`<span>TTS</span><span class="status-dot ${tts?.reachable ? 'on' : tts?.enabled ? 'wait' : ''}"></span>` : null}</span>
     </div>
     <nav class="nav">${pages.map(([k, l], i) => html`<button class=${cur === k ? 'active' : ''} onClick=${() => go(k)} title=${`Shortcut ${i + 1}`}>${l}${(k === 'gm-dash' || k === 'combat') && pending ? html`<span class="badge">${pending}</span>` : null}</button>`)}</nav>
