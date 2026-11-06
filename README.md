@@ -36,11 +36,14 @@ node src/server/cli.cjs --data ./my-campaigns --port 7788
 
 ## Quick start for the GM
 
+0. **Start screen.** It opens first: continue the last campaign, open another, create a new or test campaign, import a package or migrate an old save. Click the logo in the title bar to return to it.
 1. **Campaign → Players.** Add your players. A test campaign is created on first start, so you can experiment safely.
 2. **Characters.** Create a character for each player and assign the player.
    * Open the character's sheet and use **Link .gcs file…**. From then on, whenever GCS saves the file, the companion imports it.
    * **Edit in GCS** opens the bundled GCS application.
-3. **Item Catalog.** The Tier 1 weapons, magazines and ammunition from your earlier build are already included. So are armor, medical supplies, artifacts, attachments and containers.
+3. **Item Catalog.** New campaigns start with an **empty catalog**.
+   * Create items with **+ New**, import a catalog JSON, or click **Load starter catalog** (the Tier 1 weapons, magazines and ammunition from your earlier build, plus armor, medical supplies, artifacts, attachments, containers, recipes and NPC gear).
+   * **Remove unused items** deletes every item nobody owns.
    * Edit prices and statistics here.
    * Import PNG artwork.
    * Place attachment anchors with the anchor editor.
@@ -54,6 +57,7 @@ node src/server/cli.cjs --data ./my-campaigns --port 7788
    * Enable hosting under **Settings → Multiplayer hosting**.
    * Set a join code per player.
    * Players open `http://<GM address>:7788` and sign in.
+   * **Up to 8 people can be connected at once**: the GM plus 7 players. Several windows of one person count once. The 👥 counter in the top bar shows who is online; a 9th person sees "Session full" and gets in when someone leaves.
 
 ### Keyboard
 
