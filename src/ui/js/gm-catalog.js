@@ -2,6 +2,7 @@
 import { html, useState, useEffect, useRef, run, Panel, Tabs, toast, askNumber, confirmBox, tipProps, useLocal, openMenu } from './ui.js';
 import { TargetSelect, spawnItem, spawnTargets, getSpawnTarget, setSpawnTarget, targetLabel } from './spawn.js';
 import * as M from './model.js';
+import { ItemArt, cellPx, useArtAspect } from './inventory.js';
 
 const CATS = { weapon: 'Weapons', armor: 'Armor & Clothing', equipment: 'Equipment', medical: 'Medical', material: 'Crafting Materials', artifact: 'Artifacts', ammo: 'Ammunition', magazine: 'Magazines', container: 'Containers', attachment: 'Attachments', misc: 'Miscellaneous' };
 const SUBS = { weapon: ['Pistols', 'Revolvers', 'Submachine Guns', 'Shotguns', 'Assault Rifles', 'Battle Rifles', 'Marksman Rifles', 'Sniper Rifles', 'Rifles', 'Machine Guns', 'Launchers', 'Melee Weapons', 'Thrown'], armor: ['Body Armor', 'Helmets', 'Masks', 'Suits', 'Clothing'], equipment: ['Tactical Rigs', 'Backpacks', 'Tools', 'Electronics', 'Detectors', 'Lights', 'Food & Drink'], medical: ['Bandages', 'Medkits', 'Drugs', 'Anti-radiation', 'Stimulants'], material: ['Parts', 'Chemicals', 'Mutant Parts', 'Electronics', 'Repair'], artifact: ['Gravitational', 'Chemical', 'Fire', 'Electrical', 'Miscellaneous'], ammo: ['Pistol', 'Rifle', 'Shotgun', 'Grenades'], magazine: ['Pistol', 'SMG', 'Rifle', 'Shotgun'], container: ['Pouches', 'Cases', 'Storage'], attachment: ['Optics', 'Muzzle Devices', 'Foregrips', 'Stocks', 'Tactical Devices', 'Underbarrel'], misc: ['Valuables', 'Documents', 'Keys', 'Junk'] };
@@ -70,6 +71,40 @@ function ImagePicker({ v, value, onChange, label = 'Image' }) {
     ${value && !value.startsWith('seed:') ? html`<button class="small" onClick=${() => autoTrim(v, value)} ...${tipProps('Crop transparent borders (stored as metadata; the file is not changed).')}>Auto-fit</button>
       <button class="small" disabled=${busy} onClick=${async () => { setBusy(true); try { const id = await removeBackground(v, value); if (id) { onChange(id); toast('Created a new image without background; the original is kept.', 'ok'); } } catch (e) { toast(e.message, 'error'); } setBusy(false); }}>Remove background</button>` : null}
   </div></div>`;
+}
+
+/**
+ * The item exactly as it will look in an inventory grid (same cell size), plus a size check:
+ * a long, thin picture (a suppressor, a rifle) in a small or square footprint is drawn tiny,
+ * so the GM can match the footprint to the picture with one click.
+ */
+function GridPreview({ v, d, setD }) {
+  const aspect = useArtAspect(v, d.image);
+  const cell = cellPx();
+  const w = Math.max(1, Number(d.w) || 1), h = Math.max(1, Number(d.h) || 1);
+  const key = d.id || '__preview';
+  const pv = { ...v, defs: { ...v.defs, [key]: { ...d, w, h } } };
+  const tileW = w * cell - 2, tileH = h * cell - 2;
+  // footprint whose shape best matches the picture, keeping the short side
+  const fit = (() => {
+    if (!aspect) return null;
+    if (aspect >= 1) { const hh = Math.min(w, h); return { w: Math.min(10, Math.max(1, Math.round(hh * aspect))), h: hh }; }
+    const ww = Math.min(w, h); return { w: ww, h: Math.min(10, Math.max(1, Math.round(ww / aspect))) };
+  })();
+  const ratio = aspect ? aspect / (w / h) : 1;
+  const mismatch = fit && (ratio > 1.6 || ratio < 1 / 1.6) && (fit.w !== w || fit.h !== h);
+  return html`<div class="full grid-preview">
+    <div class="row small"><span class="muted">In the inventory (${w}×${h} cells)</span>${aspect ? html`<span class="dim">· picture ${aspect >= 1 ? aspect.toFixed(1) + ':1' : '1:' + (1 / aspect).toFixed(1)}</span>` : null}</div>
+    <div class="row" style=${{ alignItems: 'flex-start', gap: '14px' }}>
+      <div class="tile cat-${d.category || 'misc'}" style=${{ position: 'relative', width: tileW + 'px', height: tileH + 'px', flex: 'none', cursor: 'default' }}>
+        <div class="tile-art"><${ItemArt} v=${pv} item=${{ id: '__preview', defId: key }} w=${tileW} h=${tileH - 12} /></div>
+        <span class="name">${d.name || 'New item'}</span>
+      </div>
+      ${mismatch ? html`<div class="col small" style=${{ maxWidth: '300px' }}>
+        <span class="warn">The picture is much ${ratio > 1 ? 'longer' : 'taller'} than the item’s ${w}×${h} footprint, so it is drawn small in the grid.</span>
+        <button class="small" onClick=${() => setD({ ...d, w: fit.w, h: fit.h })}>Fit size to picture → ${fit.w}×${fit.h}</button>
+        <span class="dim">Or keep ${w}×${h} if that is the size you want in the game.</span></div>` : null}
+    </div></div>`;
 }
 
 /* ---------------------------------------------------------- anchor editor */
@@ -158,6 +193,7 @@ function DefEditor({ v, def, onSaved }) {
         ${txt(d, setD, 'tags', 'Tags', 'Comma separated. "gm-only" hides the definition from players; "no-trade" keeps it out of generated shops.')}
         <label class="field full">Description<textarea rows="3" value=${d.description} onInput=${e => setD({ ...d, description: e.target.value })} /></label>
         <div class="full"><${ImagePicker} v=${v} value=${d.image} onChange=${id => setD({ ...d, image: id })} label="Base image (PNG)" /></div>
+        <${GridPreview} v=${v} d=${d} setD=${setD} />
         <div class="field full"><span>Trader availability (empty = by category)</span><div class="row">${TRADERS.map(t => html`<label class="row small"><input type="checkbox" checked=${(d.traders || []).includes(t)} onChange=${e => setD({ ...d, traders: e.target.checked ? [...(d.traders || []), t] : d.traders.filter(x => x !== t) })} /> ${t}</label>`)}</div></div>
       </div><//>
       <${Panel} title="Behaviour"><div class="col">

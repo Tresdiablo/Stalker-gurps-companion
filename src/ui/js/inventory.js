@@ -32,6 +32,16 @@ function measure(url) {
   img.src = url;
   return null;
 }
+/** Width/height of the visible part of an image (transparent borders trimmed), or null while loading. */
+export function useArtAspect(v, ref) {
+  const url = M.imageUrl(v, ref);
+  const [n] = useNatural([url]);
+  if (!n || n.broken) return null;
+  const ac = v.assets?.[ref]?.crop;
+  const t = ac ? { w: ac.w / 100, h: ac.h / 100 } : n.trim || { w: 1, h: 1 };
+  return (n.w * t.w) / (n.h * t.h);
+}
+
 function useNatural(urls) {
   const [, force] = useState(0);
   useEffect(() => { const f = () => force(x => x + 1); naturalWaiters.add(f); return () => naturalWaiters.delete(f); }, []);
@@ -152,7 +162,7 @@ export function Tile({ v, it, ctx, style, inSlot, price }) {
     ...tipProps(tileTip(v, it)),
   };
   return html`<div ...${attrs}>
-    <${ItemArt} v=${v} item=${it} w=${inSlot ? 140 : w} h=${inSlot ? 56 : h} rotated=${rotated} />
+    <div class="tile-art"><${ItemArt} v=${v} item=${it} w=${inSlot ? 140 : w} h=${inSlot ? 56 : h - 12} rotated=${rotated} /></div>
     <span class="name">${M.itemName(v, it)}</span>
     ${it.cond !== undefined && it.cond < 100 ? html`<span class="cond">${it.cond}%</span>` : null}
     ${badges.length ? html`<span class="badges">${badges.map(b => html`<span>${b}</span>`)}</span>` : null}

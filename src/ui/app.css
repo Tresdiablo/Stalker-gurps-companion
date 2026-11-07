@@ -140,6 +140,7 @@ table.t tr.sel td { background: #1d3140; }
 .tile.hidden-item { outline: 1px dashed var(--warn); }
 .tile.cat-weapon { background: linear-gradient(#2b3540, #1d262e); } .tile.cat-ammo { background: linear-gradient(#2c3023, #1e2219); } .tile.cat-medical { background: linear-gradient(#3a2626, #261a1a); }
 .tile.cat-artifact { background: linear-gradient(#352c40, #221c2a); } .tile.cat-armor { background: linear-gradient(#2c3328, #1d221a); } .tile.cat-equipment, .tile.cat-container { background: linear-gradient(#2e2f26, #1f2019); }
+.tile .tile-art { position: absolute; left: 0; right: 0; bottom: 0; top: 12px; pointer-events: none; } /* art sits below the name label */
 .tile .name { position: absolute; top: 2px; left: 4px; right: 4px; font-size: 10px; color: #dfe9f0; text-shadow: 0 1px 2px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; z-index: 4; }
 .tile .qty { position: absolute; right: 3px; bottom: 1px; font-size: 11px; font-weight: 700; color: #7fc3ff; text-shadow: 0 0 3px #000, 0 1px 1px #000; pointer-events: none; z-index: 4; }
 .tile .rounds { position: absolute; left: 3px; bottom: 1px; font-size: 10px; font-weight: 700; color: #ffe7a8; text-shadow: 0 1px 2px #000; pointer-events: none; z-index: 4; }
