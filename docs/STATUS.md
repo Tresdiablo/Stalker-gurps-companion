@@ -43,6 +43,8 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 | GM controls | NPC control bar (auto-follows NPC turns, nearest-PC target, attack / reload / aim / maneuver / posture / next turn, secret rolls); searchable spawn picker (`G`) aimed at the selected character; catalog "Spawn into" receiver with + / double-click / right-click; one-click Reload for any firearm (best magazine or loose rounds); bulk distances; quick encounter with all PCs; Ctrl+click quick transfer. |
 | Turn cycle | Turn bar with round / current / next; "Your turn" pop-up and chime for the player whose character acts; "NPC turn" pop-up for the GM naming the NPC and who is next; players end their own turn (button or `E`, stale clicks ignored); downed combatants skipped; options to enforce turn order. |
 | 1-second combat | Hands slot (drawing takes the turn, Fast-Draw makes it instant), Sling/Back carry slots, and a Ready slot that stages an item for the next turn: magazines (grab + load = 2 turns, Fast-Draw (Ammo) = 1), loose rounds (1 per turn, 2 with Fast-Draw (Ammo)), stripper clips (reload time from Shots), consumables, drawing weapons. Pulled magazines and empty clips go rig → backpack → pockets → ground. Spent turns block attacks and are shown in the turn pop-up. Free outside encounters; seconds during breaks. Old saves move the former "In hands" items to Hands (schema 2). |
+| Streamlined table flow | Turns end automatically once used (attack, aim, draw, Ready-slot action) and spent turns pass on; NPCs roll their best defense automatically (damage is still applied only by the GM); both are Settings toggles. Encounter start reveals NPCs (ambush option). ⚔ Quick fight dialog. Compact NPC bar on players' turns; duplicate Next-turn buttons, darkness field and shortcut hints removed from the dashboard row; rarely used target fields folded under "Distances, size, speed, modifiers". |
+| Catalog prep | 📋 Paste from spreadsheet: header-matched columns, category/subcategory guessing, size "5x2", weapon skill from subcategory, preview with problems list, updates by name. |
 | Item Editor | Drop-downs of catalog IDs per field kind (calibers, magazine/clip families, interfaces, weapon ids, tags, conditions, container categories, mount interfaces) with matching IDs first; GURPS gun/thrown/melee/unarmed skill list; subcategory → weapon skill; category → behaviour; grid preview with picture-shape check. |
 | Breaks | GM allots N seconds; per-player second budgets spent by ready / reload / attach / load / aim / use; no attacks; "I'm done" per player; ending advances the clock N rounds, completes readying, restarts the order. |
 | Main menu & GM password | Character picker with server-side locks (one person per character), join codes, GM password (default `goyim`, salted scrypt hash, changeable in Settings), logout back to the menu. |
@@ -97,7 +99,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 
 ## Tests performed
 
-* `npm test`: **54 tests, all passing**. They cover:
+* `npm test`: **55 tests, all passing**. They cover:
   * dice, criticals, contests, damage parsing,
   * SSR range, rapid fire, hits and Dodge vs rapid fire,
   * wounding, injury, armor divisor, limb caps, shock, thresholds, encumbrance, modifiers,
@@ -130,6 +132,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
   * trader purchase,
   * installing a scope and suppressor with layered rendering.
 * `node tests/e2e/turns-menu.cjs`: **passing**. GM, two players and a third window in Chromium: wrong GM password refused and `goyim` accepted, a character in use locked for others, "Your turn" and "NPC turn" pop-ups, readying a rifle (usable next round), ending turns by button and `E`, a 5-second break with a 3-second reload, ending the break (clock to round 7), a magazine staged in the Ready slot and loaded automatically at the start of the next turn, and returning to the main menu frees the character.
+* `node tests/e2e/streamline.cjs`: **passing**. Quick fight dialog (encounter, generated and revealed NPCs, started), preselected target, NPC auto-defense with the turn passing automatically, and a 4-row spreadsheet paste (weapon with skill from subcategory and a 12/70 caliber, magazine, armor coverage, stripper clip).
 * `node tests/e2e/item-editor.cjs`: **passing**. Category switches on the Weapon behaviour, Shotguns/Pistols set the skill, the magazine-family drop-down lists families that take the chosen caliber first, and the saved definition has the picked IDs.
 * GCS reader run over the 648 master-library `.gcs` files: all parsed, and point totals match.
 * Pinned GCS archives downloaded and checked: 5.58.0 `1bf69c17…` matches the earlier build's pin; 5.58.1 `fb209e11…` is now pinned.

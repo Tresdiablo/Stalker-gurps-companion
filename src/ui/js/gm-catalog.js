@@ -4,6 +4,8 @@ import { TargetSelect, spawnItem, spawnTargets, getSpawnTarget, setSpawnTarget, 
 import * as M from './model.js';
 import { ItemArt, cellPx, useArtAspect } from './inventory.js';
 import { TokenField, PickField, idOptions, withSub, SUB_SKILL } from './idfields.js';
+import { parseTable, rowsToDefs } from './table-import.js';
+import { openModal, Modal } from './ui.js';
 
 const CATS = { weapon: 'Weapons', armor: 'Armor & Clothing', equipment: 'Equipment', medical: 'Medical', material: 'Crafting Materials', artifact: 'Artifacts', ammo: 'Ammunition', magazine: 'Magazines', container: 'Containers', attachment: 'Attachments', misc: 'Miscellaneous' };
 const SUBS = { weapon: ['Pistols', 'Revolvers', 'Submachine Guns', 'Shotguns', 'Assault Rifles', 'Battle Rifles', 'Marksman Rifles', 'Sniper Rifles', 'Rifles', 'Machine Guns', 'Launchers', 'Melee Weapons', 'Thrown'], armor: ['Body Armor', 'Helmets', 'Masks', 'Suits', 'Clothing'], equipment: ['Tactical Rigs', 'Backpacks', 'Tools', 'Electronics', 'Detectors', 'Lights', 'Food & Drink'], medical: ['Bandages', 'Medkits', 'Drugs', 'Anti-radiation', 'Stimulants'], material: ['Parts', 'Chemicals', 'Mutant Parts', 'Electronics', 'Repair'], artifact: ['Gravitational', 'Chemical', 'Fire', 'Electrical', 'Miscellaneous'], ammo: ['Pistol', 'Rifle', 'Shotgun', 'Grenades'], magazine: ['Pistol', 'SMG', 'Rifle', 'Shotgun', 'Stripper Clips'], container: ['Pouches', 'Cases', 'Storage'], attachment: ['Optics', 'Muzzle Devices', 'Foregrips', 'Stocks', 'Tactical Devices', 'Underbarrel'], misc: ['Valuables', 'Documents', 'Keys', 'Junk'] };
@@ -269,6 +271,36 @@ function DefEditor({ v, def, onSaved }) {
   </div>`;
 }
 
+const SHEET_EXAMPLE = 'Name\tCategory\tSubcategory\tDamage\tAcc\tRange\tRoF\tShots\tBulk\tRcl\tST\tCaliber\tMagazines\tWeight\tPrice\tSize\nAKM\tWeapon\tAssault Rifles\t5d pi\t5\t400/3000\t10\t30+1(3)\t-4\t2\t9\t7.62x39\tak762\t3.1\t28000\t5x2';
+
+/** Paste rows from a spreadsheet; preview what will be created, then import in one go. */
+async function pasteSheet(v) {
+  const existing = Object.fromEntries(Object.values(v.defs).map(d => [d.name.toLowerCase(), d.id]));
+  const defs = await openModal(close => {
+    const Body = () => {
+      const [text, setText] = useState('');
+      const parsed = text.trim() ? rowsToDefs(parseTable(text), existing) : null;
+      const counts = {};
+      for (const d of parsed?.defs || []) counts[d.category] = (counts[d.category] || 0) + 1;
+      const updates = (parsed?.defs || []).filter(d => v.defs[d.id]).length;
+      return html`<${Modal} wide=${true} title="Paste items from a spreadsheet" footer=${html`<button onClick=${() => close(null)}>Cancel</button><button class="primary" disabled=${!parsed?.defs.length} onClick=${() => close(parsed.defs)}>Import ${parsed?.defs.length || ''} item${parsed?.defs.length === 1 ? '' : 's'}</button>`}>
+        <div class="col small">
+          <div>Select the rows in Excel or Google Sheets <b>including the header row</b>, copy, and paste below. Columns are matched by name — e.g. <span class="mono">Name, Category, Subcategory, Damage, Acc, Range, RoF, Shots, Bulk, Rcl, ST, Skill, Caliber, Magazines, Capacity, Internal, DR, Covers, Heal, Weight, Price, Size (5x2)</span>. Missing columns get sensible defaults; the weapon skill comes from the subcategory. Items with a name already in the catalog are updated.</div>
+          <textarea rows="10" class="mono" placeholder=${SHEET_EXAMPLE} value=${text} onInput=${e => setText(e.target.value)} style=${{ width: '100%' }} />
+          ${parsed ? html`<div class="row">${Object.entries(counts).map(([k, n]) => html`<span class="chip info">${n} ${k}</span>`)}${updates ? html`<span class="chip warn">${updates} update existing</span>` : null}
+            ${parsed.columns.ignored.length ? html`<span class="chip" title=${'Not recognised: ' + parsed.columns.ignored.join(', ')}>${parsed.columns.ignored.length} column${parsed.columns.ignored.length === 1 ? '' : 's'} ignored</span>` : null}</div>
+            ${parsed.problems.length ? html`<div class="notice-bar small" style=${{ maxHeight: '120px', overflow: 'auto' }}>${parsed.problems.map(p => html`<div>⚠ ${p}</div>`)}</div>` : null}
+            <div class="scroll" style=${{ maxHeight: '200px' }}><table class="mini"><tr><th>Name</th><th>Category</th><th>Sub</th><th>Size</th><th>Details</th></tr>
+              ${parsed.defs.slice(0, 200).map(d => html`<tr><td>${d.name}</td><td>${d.category}</td><td>${d.sub}</td><td>${d.w}×${d.h}</td><td class="dim">${d.weapon ? `${d.weapon.skill} · ${d.weapon.damage}${d.weapon.calibers?.length ? ' · ' + d.weapon.calibers.join(', ') : ''}` : d.magazine ? `${d.magazine.capacity} rds · ${d.magazine.family}` : d.ammo ? d.ammo.caliber : d.armor ? `DR ${d.armor.dr} · ${d.armor.locations.join(', ')}` : ''}</td></tr>`)}</table></div>` : null}
+        </div><//>`;
+    };
+    return html`<${Body} />`;
+  });
+  if (!defs) return;
+  const r = await run('def.import', { defs }, { ok: true });
+  for (const e of r?.result?.errors || []) toast(e, 'error');
+}
+
 export function Catalog({ v }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useLocal('cat-filter', '');
@@ -300,7 +332,7 @@ export function Catalog({ v }) {
         <div class="tiny dim">Click <b>+</b> or double-click an item to spawn it there · right-click for amounts or another receiver.</div>
         <input class="search" placeholder="Search…" value=${q} onInput=${e => setQ(e.target.value)} />
         <select value=${cat} onChange=${e => setCat(e.target.value)}><option value="">All categories</option>${Object.entries(CATS).map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select>
-        <div class="row"><button class="small" onClick=${importCatalog}>Import JSON…</button><button class="small" onClick=${exportCatalog}>Export JSON</button></div>
+        <div class="row"><button class="small good" onClick=${() => pasteSheet(v)} title="Copy rows from Excel / Google Sheets / a CSV (with a header row) and paste them here">📋 Paste from spreadsheet…</button><button class="small" onClick=${importCatalog}>Import JSON…</button><button class="small" onClick=${exportCatalog}>Export JSON</button></div>
         <div class="row"><button class="small" onClick=${async () => { if (await confirmBox('Load starter catalog', 'Add the built-in items (Tier 1 weapons, magazines, ammo, armor, medical, artifacts, attachments, containers), crafting recipes and NPC template gear? Items you already have are kept.', 'Load')) run('def.loadStarter', {}, { ok: true }); }}>Load starter catalog</button>
           <button class="small danger" disabled=${!Object.keys(v.defs).length} onClick=${async () => { if (await confirmBox('Remove unused items', 'Delete every catalog item that no character, NPC, stash or trader currently owns? Items in use are kept. Recipes and NPC gear that refer to removed items are cleaned up.', 'Remove')) run('def.deleteUnused', {}, { ok: true }); }}>Remove unused items</button></div></div>
       <div class="scroll h-lg">${Object.entries(groups).map(([g, items]) => html`<div class="grid-label" style=${{ padding: '0 8px' }}>${g}</div>${items.map(x => html`<div class="list-item cat-row ${d?.id === x.id ? 'sel' : ''}" onClick=${() => setSel(x.id)} onDblClick=${() => spawnItem(v, x.id, to, { loaded: true })} onContextMenu=${e => spawnMenu(e, x)} title="Double-click: spawn into the receiver · Right-click: more">

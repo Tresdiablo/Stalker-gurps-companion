@@ -21,6 +21,7 @@ const gm = { role: 'gm' };
   const d = (a, p) => host.dispatch(a, p, gm);
   const s = () => host.current.state;
   d('def.loadStarter', {});
+  d('settings.update', { rules: { autoEndTurn: false } }); // this test ends turns by hand
   const ivan = d('char.create', { name: 'Stalker Ivan', kind: 'pc' }).result.id;
   const marta = d('char.create', { name: 'Marta', kind: 'pc' }).result.id;
   d('char.manualBuild', { id: ivan, build: { dx: 13, ht: 11, basicSpeed: 6, skills: [{ name: 'Guns', spec: 'Rifle', level: 14 }] } });

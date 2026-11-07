@@ -148,3 +148,37 @@ test('old saves: items in the former "In hands" slot move to Hands', () => {
   assert.equal(s.schema, 2);
   assert.match(report.join(' '), /Hands/);
 });
+
+test('streamlined: turns end by themselves once used, spent turns pass, NPCs defend automatically', () => {
+  const t = setup({ auto: true });
+  const { engine, gm, player, pc } = t;
+  giveBuild(engine, gm, pc, { dx: 12, ht: 11, basicSpeed: 6, skills: [{ name: 'Guns', spec: 'Rifle', level: 14 }] });
+  const n1 = engine.dispatch('char.create', { name: 'Bandit', kind: 'npc' }, gm).result.id;
+  giveBuild(engine, gm, n1, { basicSpeed: 5, dx: 10, ht: 10 });
+  const sp = (defId, extra) => engine.dispatch('item.spawn', { defId, ...extra }, gm).result.ids[0];
+  const ak = sp('builtin-akm-76239', { target: { p: 'char:' + pc, slot: 'hands' } });
+  engine.dispatch('item.insertMag', { weaponId: ak, magId: sp('mag-ak762-30', { to: 'char:' + pc, loadFull: true }) }, gm);
+  const spare = sp('mag-ak762-30', { to: 'char:' + pc, loadFull: true });
+  const enc = engine.dispatch('enc.create', { name: 'Fight', participants: [pc, n1] }, gm).result.id;
+  const e = () => engine.state.encounters[enc];
+  engine.dispatch('enc.start', { id: enc }, gm);
+  // attack: hit, the NPC dodges by itself, and the turn passes to the bandit
+  t.queue.push(3, 3, 3, 6, 6, 6); // attack 9 (hit, not critical), dodge 18 (fail)
+  const r = engine.dispatch('combat.attack', { actorId: pc, targetId: n1, weapon: { itemId: ak }, shots: 1 }, player);
+  const ev = engine.state.events[r.result.eventId];
+  assert.equal(ev.defense.type, 'dodge', 'NPC rolled its best defense');
+  assert.equal(ev.stage, 'resolved', 'injury is calculated, waiting for the GM to apply it');
+  assert.equal(engine.state.characters[n1].session.hp, 10, 'HP never changes without the GM');
+  assert.equal(e().order[e().turn], n1, 'turn passed to the bandit');
+  assert.match(r.summary, /Bandit's turn/);
+  // GM ends the bandit's turn; Ivan stages a magazine: his turn passes at once
+  engine.dispatch('enc.next', { id: enc }, gm);
+  assert.equal(e().order[e().turn], pc);
+  engine.dispatch('item.move', { itemId: spare, target: { p: 'char:' + pc, slot: 'ready' } }, player);
+  assert.equal(e().order[e().turn], n1, 'grabbing the magazine used the turn');
+  // bandit's turn ends; Ivan's next turn is spent loading → passes straight back to the bandit
+  const r2 = engine.dispatch('enc.next', { id: enc }, gm);
+  assert.match(r2.summary, /30-round magazine in AKM/);
+  assert.equal(e().order[e().turn], n1);
+  assert.equal(e().round, 3);
+});

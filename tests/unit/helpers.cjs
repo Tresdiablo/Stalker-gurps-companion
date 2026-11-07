@@ -9,10 +9,12 @@ class QueueContext extends Context {
 }
 
 /** Build an engine with a seeded campaign, a GM, a player and a PC. */
-function setup({ dice = [] } = {}) {
+function setup({ dice = [], auto = false } = {}) {
   const queue = dice;
   let n = 0;
   const base = campaign.emptyCampaign(new Context({ idgen: () => 'seed' + (++n), clock: () => '2026-01-01T00:00:00.000Z' }), { name: 'Test Campaign', test: true, seedCatalog: true });
+  // most tests drive turns and NPC defenses by hand; `auto` keeps the streamlined defaults
+  if (!auto) Object.assign(base.settings.rules, { autoEndTurn: false, autoNpcDefense: false });
   const journal = [];
   const engine = new Engine(base, { journal: e => journal.push(e), contextFactory: opts => opts.replay ? new Context(opts) : new QueueContext(queue) });
   const gm = { role: 'gm' };

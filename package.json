@@ -8,7 +8,7 @@
     "start": "electron .",
     "host": "node src/server/cli.cjs",
     "test": "node --test tests/unit/*.test.cjs",
-    "test:e2e": "node tests/e2e/run-e2e.cjs && node tests/e2e/turns-menu.cjs && node tests/e2e/item-editor.cjs",
+    "test:e2e": "node tests/e2e/run-e2e.cjs && node tests/e2e/turns-menu.cjs && node tests/e2e/item-editor.cjs && node tests/e2e/streamline.cjs",
     "build:win": "electron-builder --win nsis --x64",
     "release:win": "electron-builder --win nsis --x64 --publish always"
   },

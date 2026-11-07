@@ -99,12 +99,13 @@ export function EncounterManager({ v, go }) {
   const npcs = Object.values(v.characters).filter(c => c.kind === 'npc' && !c.archived);
   const create = async () => { const name = await askText('Encounter name', { value: 'New encounter' }); if (!name) return; const r = await run('enc.create', { name, participants: pcs.map(c => c.id) }); if (r) setSel(r.result.id); };
   return html`<div class="cols side">
-    <${Panel} title="Encounters" flat=${true} actions=${html`<button class="small primary" onClick=${create}>+ New</button>`}>
+    <${Panel} title="Encounters" flat=${true} actions=${html`<button class="small good" onClick=${async () => { const id = await quickFight(v, go); if (id) setSel(id); }} title="Players + generated enemies, started in one step">⚔ Quick fight</button><button class="small primary" onClick=${create}>+ New</button>`}>
       <label class="row small" style=${{ padding: '6px' }}><input type="checkbox" checked=${showArchived} onChange=${x => setShowArchived(x.target.checked)} /> show archived</label>
       ${encs.filter(x => showArchived || x.status !== 'archived').map(x => html`<div class="list-item ${e?.id === x.id ? 'sel' : ''}" onClick=${() => setSel(x.id)}><span class="grow">${x.name}<br /><span class="tiny muted">${x.status} · ${x.order.length} combatants${x.round ? ` · round ${x.round}` : ''}</span></span></div>`)}<//>
     ${e ? html`<div class="col">
       <div class="row"><input value=${e.name} onChange=${x => run('enc.update', { id: e.id, name: x.target.value })} style=${{ fontSize: '15px', fontWeight: 600 }} /><span class="chip">${e.status}</span>
         ${e.status !== 'active' ? html`${!e.round ? html`<label class="row small" title="NPCs begin with their first weapon in hands"><input type="checkbox" checked=${e.env.npcsDrawn !== false} onChange=${x => run('enc.update', { id: e.id, env: { npcsDrawn: x.target.checked } })} /> NPCs start with weapons drawn</label>
+          <label class="row small" title="Players see the NPCs (and can target them) when the fight starts. Untick for an ambush, then reveal NPCs one by one on the dashboard."><input type="checkbox" checked=${e.env.revealNpcs !== false} onChange=${x => run('enc.update', { id: e.id, env: { revealNpcs: x.target.checked } })} /> Show NPCs to players</label>
           <label class="row small" title="Leave off for an ambush: players must ready weapons first"><input type="checkbox" checked=${!!e.env.pcsDrawn} onChange=${x => run('enc.update', { id: e.id, env: { pcsDrawn: x.target.checked } })} /> PCs start with weapons drawn</label>` : null}
         <button class="primary" onClick=${async () => { await run('enc.start', { id: e.id }); go('gm-dash'); }}>${e.round ? 'Resume' : 'Start'} & open dashboard</button>` : html`<button class="primary" onClick=${() => go('gm-dash')}>Open dashboard</button><button onClick=${() => run('enc.end', { id: e.id })}>End</button>`}
         ${e.status === 'ended' ? html`<button onClick=${() => run('enc.archive', { id: e.id })}>Archive</button>` : null}${e.status === 'archived' ? html`<button onClick=${() => run('enc.archive', { id: e.id, restore: true })}>Restore</button>` : null}
@@ -131,6 +132,39 @@ export function EncounterManager({ v, go }) {
       </div>
     </div>` : html`<div class="empty">Create an encounter.</div>`}
   </div>`;
+}
+
+/**
+ * Quick fight: one dialog → an encounter with every player character plus freshly generated NPCs,
+ * started (NPCs revealed and armed) and the dashboard opened.
+ */
+export async function quickFight(v, go) {
+  const tpls = Object.values(v.npcTemplates || {});
+  const pcs = Object.values(v.characters).filter(c => c.kind === 'pc' && !c.archived);
+  const f = await openModal(close => {
+    const Body = () => {
+      const [x, setX] = useState({ name: 'Ambush at the checkpoint', templateId: tpls[0]?.id || '', count: 3, rank: '', ambush: false });
+      const set = k => e => setX({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+      return html`<${Modal} title="⚔ Quick fight" footer=${html`<button onClick=${() => close(null)}>Cancel</button><button class="primary" onClick=${() => close(x)}>Start fight ▶</button>`}>
+        <div class="form">
+          <label class="field full">Name<input value=${x.name} onInput=${set('name')} /></label>
+          <label class="field wide">Enemies<select value=${x.templateId} onChange=${set('templateId')}><option value="">none — players only</option>${tpls.map(t => html`<option value=${t.id}>${t.name}</option>`)}</select></label>
+          <label class="field">How many<input type="number" min="1" max="30" value=${x.count} onInput=${set('count')} /></label>
+          <label class="field">Rank<select value=${x.rank} onChange=${set('rank')}><option value="">template</option>${v.settings.ranks.map((r, i) => html`<option value=${i + 1}>${r.name}</option>`)}</select></label>
+          <label class="row small full"><input type="checkbox" checked=${x.ambush} onChange=${set('ambush')} /> Ambush: NPCs stay hidden and players start with weapons stowed</label>
+        </div>
+        <div class="tiny dim">${pcs.length} player character${pcs.length === 1 ? '' : 's'} join${pcs.length === 1 ? 's' : ''}: ${pcs.map(c => c.name).join(', ') || '—'}. Turn order by Basic Speed.</div><//>`;
+    };
+    return html`<${Body} />`;
+  });
+  if (!f) return null;
+  const r = await run('enc.create', { name: f.name || 'Fight', participants: pcs.map(c => c.id) });
+  if (!r) return null;
+  const id = r.result.id;
+  if (f.templateId) await run('npc.generate', { templateId: f.templateId, count: Math.max(1, Number(f.count) || 1), rank: f.rank ? Number(f.rank) : undefined, encounterId: id }); // gear warnings (no room for a spare) are only noise here
+  await run('enc.start', { id, revealNpcs: !f.ambush, pcsDrawn: !f.ambush });
+  go?.('gm-dash');
+  return id;
 }
 
 /* ======================================================= Character Manager */
@@ -331,6 +365,8 @@ export function Settings({ v }) {
       ${tog('readyRequired', 'One-second combat: weapons must be drawn into Hands (Ready maneuver, B366)', 'In combat a weapon must be in the Hands slot. Drawing takes a turn (usable next round) unless a Fast-Draw roll succeeds. The Ready slot stages magazines (2 turns), stripper clips (reload time), loose rounds (1 per turn, 2 with Fast-Draw (Ammo)) and medical items for the next turn.')}
       ${tog('enforceTurns', 'Players act only on their own turn', 'Attacks, aiming and timed actions are refused out of turn. The GM can always act.')}
       ${tog('skipDown', 'Skip dead or unconscious combatants in the turn order')}
+      ${tog('autoEndTurn', 'End turns automatically once they are used (attack, aim, drawing, Ready-slot actions)', 'Fewer clicks: after an attack or aim the next combatant is up at once; a turn already spent loading a magazine passes by itself. Turn off to end every turn by hand.')}
+      ${tog('autoNpcDefense', 'NPCs roll their best defense automatically', 'When an attack hits an NPC, its best active defense (Dodge, or Parry/Block in melee) is rolled at once and the injury is calculated. You still apply damage yourself.')}
       <div class="tiny dim">Core mechanics always follow the Basic Set: success rolls, criticals, rapid fire, active defenses, hit locations, wounding, shock, major wounds, HP/FP thresholds, encumbrance.</div></div><//>
     <${Panel} title="Campaign rules (S.T.A.L.K.E.R.) — off by default"><div class="col">
       ${tog('armorDT', 'Armor damage threshold (DT)', 'Penetrating damage at or below the armor DT causes no injury.')}

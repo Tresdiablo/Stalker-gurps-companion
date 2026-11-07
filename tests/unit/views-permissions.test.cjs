@@ -73,7 +73,7 @@ test('unrevealed NPC names are redacted from player event titles', () => {
   const npc = engine.dispatch('char.create', { name: 'Ghost Sniper', kind: 'npc' }, gm).result.id;
   engine.dispatch('char.manualBuild', { id: npc, build: { skills: [{ name: 'Guns', spec: 'Rifle', level: 15 }] } }, gm);
   const enc = engine.dispatch('enc.create', { name: 'Sniped', participants: [pc, npc] }, gm).result.id;
-  engine.dispatch('enc.start', { id: enc }, gm);
+  engine.dispatch('enc.start', { id: enc, revealNpcs: false }, gm); // ambush: NPCs stay hidden
   engine.dispatch('char.manualBuild', { id: npc, build: { skills: [{ name: 'Guns', spec: 'Rifle', level: 15 }] } }, gm);
   engine.state.characters[npc].build.weapons = [{ id: 'w1', owner: 'Rifle', kind: 'ranged', level: 15, damage: '7d pi', rof: '1', rcl: '2', acc: '5', range: '1000/4000' }];
   t.queue.push(1, 1, 2);

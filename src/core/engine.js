@@ -248,7 +248,9 @@ H['item.move'] = (s, ctx, p, a) => {
     const charId = dest.slice(5);
     if (!isGM(a)) requireOwn(s, a, charId);
     const note = staging.stage(s, ctx, a, it, charId, { instant: isGM(a) && !!p.instant });
-    return { summary: note, gmOnly: s.characters[charId]?.kind === 'npc' };
+    const e = tempo.activeEncounterFor(s, charId);
+    const next = e && !e.break && !p.instant && e.combatants[charId]?.turnSpent === e.round ? autoAdvance(s, ctx, charId) : '';
+    return { summary: note + next, gmOnly: s.characters[charId]?.kind === 'npc' };
   }
   if (it.loc?.slot === 'ready') staging.unstage(it);
   const wasReady = it.loc?.slot === 'hands';
@@ -301,7 +303,8 @@ function readyItem(s, ctx, a, it, charId, { fastDraw = false, instant = false } 
     if (!quick) note += ` — usable from round ${it.readyAt}`;
   } else tempo.markBusy(it, null, 0);
   if (t.mode === 'break') note = ` (1 s of the break; ${t.remaining === Infinity ? '' : `${t.remaining} s left`})`;
-  return { summary: `${c.name} readied ${inv.itemName(s, it)}${note}`, gmOnly: c.kind === 'npc' };
+  const next = t.mode === 'turn' && !instant && t.enc.combatants[charId]?.turnSpent === t.enc.round ? autoAdvance(s, ctx, charId) : '';
+  return { summary: `${c.name} readied ${inv.itemName(s, it)}${note}${next}`, gmOnly: c.kind === 'npc' };
 }
 H['item.ready'] = (s, ctx, p, a) => {
   const it = inv.getItem(s, p.itemId);
@@ -603,7 +606,7 @@ H['enc.create'] = (s, ctx, p, a) => { requireGM(a); const e = combat.createEncou
 H['enc.update'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); if (p.name !== undefined) e.name = str(p.name, 120); if (p.env) e.env = { ...e.env, ...p.env }; if (Array.isArray(p.order)) { assert(p.order.length === e.order.length && p.order.every(x => e.combatants[x]), 'Invalid turn order.'); e.order = p.order; } if (p.turn !== undefined) e.turn = Math.max(0, Math.min(e.order.length - 1, Math.floor(p.turn))); return { summary: `Updated encounter ${e.name}`, gmOnly: true }; };
 H['enc.addCombatant'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); for (const cid of [].concat(p.charIds || p.charId)) combat.addCombatant(s, e, cid, p.side); return { summary: `Added ${[].concat(p.charIds || p.charId).map(i => charName(s, i)).join(', ')} to ${e.name}`, gmOnly: true }; };
 H['enc.removeCombatant'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.removeCombatant(s, e, p.charId); return { summary: `Removed ${charName(s, p.charId)} from ${e.name}`, gmOnly: true }; };
-H['enc.start'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.startEncounter(s, e, { npcsDrawn: p.npcsDrawn, pcsDrawn: p.pcsDrawn }, ctx); return { summary: `Encounter ${e.name} started (round ${e.round})` }; };
+H['enc.start'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.startEncounter(s, e, { npcsDrawn: p.npcsDrawn, pcsDrawn: p.pcsDrawn, revealNpcs: p.revealNpcs }, ctx); return { summary: `Encounter ${e.name} started (round ${e.round})` }; };
 H['enc.next'] = (s, ctx, p, a) => {
   const e = combat.getEncounter(s, p.id);
   const cur = e.order[e.turn];
@@ -612,7 +615,8 @@ H['enc.next'] = (s, ctx, p, a) => {
   if (!isGM(a)) { assert(e.status === 'active' && !e.break, 'Combat is not running.'); requireOwn(s, a, cur); }
   const r = combat.nextTurn(s, e, ctx);
   const staged = staging.onTurnStart(s, ctx, e, r.actorId);
-  return { summary: `Round ${r.round}: ${charName(s, r.actorId)}'s turn${r.skipped.length ? ` (skipped ${r.skipped.join(', ')} — down)` : ''}${staged ? ` — ${staged}` : ''}` };
+  const more = e.combatants[r.actorId]?.turnSpent === e.round ? autoAdvance(s, ctx, r.actorId) : '';
+  return { summary: `Round ${r.round}: ${charName(s, r.actorId)}'s turn${r.skipped.length ? ` (skipped ${r.skipped.join(', ')} — down)` : ''}${staged ? ` — ${staged}` : ''}${more}` };
 };
 H['enc.break'] = (s, ctx, p, a) => {
   requireGM(a);
@@ -659,9 +663,37 @@ H['enc.releaseLoot'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEnc
 H['npc.reveal'] = (s, ctx, p, a) => { requireGM(a); const c = s.characters[p.id]; assert(c?.kind === 'npc', 'Choose an NPC.'); c.hidden = !p.reveal; if (p.reveal) c.reveal = { ...c.reveal, name: p.name !== false }; return { summary: `${p.reveal ? 'Revealed' : 'Hid'} ${c.name}`, gmOnly: !p.reveal }; };
 
 /* ---------- combat */
+/**
+ * With rules.autoEndTurn, a turn that has been used up (attack, aim, drawing, a Ready-slot action)
+ * passes to the next combatant by itself; turns already spent by staged actions are passed too.
+ * Returns a note for the log ('' when nothing happened).
+ */
+function autoAdvance(s, ctx, charId) {
+  if (!tempo.rule(s, 'autoEndTurn')) return '';
+  const e = tempo.activeEncounterFor(s, charId);
+  if (!e || e.break || e.order[e.turn] !== charId) return '';
+  const notes = [];
+  for (let guard = 0; guard < e.order.length * 3; guard++) {
+    const r = combat.nextTurn(s, e, ctx);
+    const staged = staging.onTurnStart(s, ctx, e, r.actorId);
+    notes.push(`${charName(s, r.actorId)}'s turn${staged ? ` — ${staged}` : ''}`);
+    if (e.combatants[r.actorId]?.turnSpent !== e.round) break; // this one still has a choice to make
+  }
+  return ` → ${notes.join(' → ')}`;
+}
+/** With rules.autoNpcDefense, an NPC that is hit rolls its best active defense at once. */
+function autoDefend(s, ctx, ev) {
+  if (!tempo.rule(s, 'autoNpcDefense') || ev.stage !== 'awaiting-defense') return '';
+  const target = s.characters[ev.targetId];
+  if (target?.kind !== 'npc') return '';
+  const best = (ev.defenseOptions || []).filter(o => o.value !== null).sort((x, y) => y.value - x.value)[0];
+  combat.resolveDefense(s, ctx, ev.id, best ? { type: best.type, label: best.label, byUser: 'auto', byGM: true } : { type: 'none', reason: 'no defense available' }, s.settings);
+  return ev.defense?.roll ? ` · ${target.name} ${ev.defense.label}: ${ev.defense.roll.total} vs ${ev.defense.effective} — ${ev.defense.roll.label}` : ` · ${target.name} cannot defend`;
+}
+
 function canActFor(s, a, charId) { const c = s.characters[charId]; assert(c, 'Character not found.'); if (c.kind === 'npc') requireGM(a); else requireOwn(s, a, charId); return c; }
 
-H['combat.maneuver'] = (s, ctx, p, a) => { canActFor(s, a, p.charId); const e = combat.getEncounter(s, p.id); if (e.status === 'active') tempo.spend(s, a, p.charId, p.maneuver === 'aim' ? 1 : 0, p.maneuver === 'aim' ? 'Aiming' : 'That maneuver'); combat.setManeuver(s, e, p.charId, p); const m = require('./rules').MANEUVERS[p.maneuver]; const cs = e.combatants[p.charId]; return { summary: `${charName(s, p.charId)}: ${m.label}${p.maneuver === 'aim' ? ` (${cs.aim.turns} turn${cs.aim.turns > 1 ? 's' : ''})` : ''}${p.weaponId && s.items[p.weaponId] ? ` — ${inv.itemName(s, s.items[p.weaponId])}` : ''}`, gmOnly: s.characters[p.charId].kind === 'npc' }; };
+H['combat.maneuver'] = (s, ctx, p, a) => { canActFor(s, a, p.charId); const e = combat.getEncounter(s, p.id); if (e.status === 'active') tempo.spend(s, a, p.charId, p.maneuver === 'aim' ? 1 : 0, p.maneuver === 'aim' ? 'Aiming' : 'That maneuver'); combat.setManeuver(s, e, p.charId, p); const m = require('./rules').MANEUVERS[p.maneuver]; const cs = e.combatants[p.charId]; const next = p.maneuver === 'aim' && e.status === 'active' ? autoAdvance(s, ctx, p.charId) : ''; return { summary: `${charName(s, p.charId)}: ${m.label}${p.maneuver === 'aim' ? ` (${cs.aim.turns} turn${cs.aim.turns > 1 ? 's' : ''})` : ''}${p.weaponId && s.items[p.weaponId] ? ` — ${inv.itemName(s, s.items[p.weaponId])}` : ''}${next}`, gmOnly: s.characters[p.charId].kind === 'npc' }; };
 H['combat.attack'] = (s, ctx, p, a, env) => {
   const c = canActFor(s, a, p.actorId);
   if (!isGM(a)) { for (const k of ['targetUnaware', 'aimTurns', 'ignoreReady']) if (p[k] !== undefined) throw new PermissionError('Only the GM can set that.'); }
@@ -670,7 +702,9 @@ H['combat.attack'] = (s, ctx, p, a, env) => {
   tempo.spend(s, a, c.id, 0, 'Attacking');
   if (p.weapon?.itemId && !p.ignoreReady) { const block = tempo.attackBlock(s, inv.getItem(s, p.weapon.itemId), encNow, p.actorId); if (block) throw new ActionError(block, 'not-ready'); }
   const ev = combat.declareAttack(s, ctx, { ...p, byUser: a.playerId || 'GM', visibility: isGM(a) ? (p.visibility || (c.kind === 'npc' ? 'public' : 'public')) : 'public' }, s.settings);
-  return { summary: `${ev.title}: ${ev.attack.roll.total} vs ${ev.attack.effective} — ${ev.attack.roll.label}`, eventId: ev.id, gmOnly: ev.visibility === 'gm', result: { eventId: ev.id } };
+  const def = autoDefend(s, ctx, ev);
+  const next = p.keepTurn ? '' : autoAdvance(s, ctx, c.id);
+  return { summary: `${ev.title}: ${ev.attack.roll.total} vs ${ev.attack.effective} — ${ev.attack.roll.label}${def}${next}`, eventId: ev.id, gmOnly: ev.visibility === 'gm', result: { eventId: ev.id } };
 };
 H['combat.defend'] = (s, ctx, p, a) => {
   const ev = combat.getEvent(s, p.eventId);

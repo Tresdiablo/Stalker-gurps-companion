@@ -21,6 +21,8 @@ const DEFAULT_RULES = {
   readyRequired: true, // attacks need the weapon in hands; readying takes a turn (B366)
   enforceTurns: true, // players act only on their own turn during combat
   skipDown: true, // dead/unconscious combatants are skipped in the turn order
+  autoEndTurn: true, // a turn ends by itself once it is used (attack, aim, drawing, Ready-slot action)
+  autoNpcDefense: true, // NPCs roll their best active defense automatically (the GM can still undo)
   // Workflow options.
   crafting: true,
   playerSelfAdjust: true, // players may adjust their own HP/FP manually (e.g. when told by the GM)

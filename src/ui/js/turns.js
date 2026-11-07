@@ -1,5 +1,5 @@
 // Turn cycle UI: "your turn" / "NPC turn" pop-ups, the turn ticker and break controls.
-import { html, useState, useEffect, run, signed } from './ui.js';
+import { html, useState, useEffect, run, signed, tipProps } from './ui.js';
 import * as M from './model.js';
 
 /* ----------------------------------------------------------- chime (Web Audio, no files) */
@@ -117,6 +117,6 @@ export function BreakControls({ v, enc }) {
     <button class="primary" onClick=${() => run('enc.endBreak', { id: enc.id })}>End break ▶</button></div>`;
   return html`<div class="col small">
     <div class="row"><input type="number" min="1" max="600" value=${secs} onInput=${e => setSecs(e.target.value)} style=${{ width: '70px' }} /> seconds <button class="primary" onClick=${() => run('enc.break', { id: enc.id, seconds: Number(secs) })}>⏸ Start break</button></div>
-    <div class="dim">A lull in the fighting. Each player gets that many seconds to ready items (1 s), reload (the weapon’s reload time), fit attachments (3 s), load magazines (2 rounds/s), aim (1 s each, kept afterwards) or use items. Nobody attacks; the turn order pauses. When you end the break the clock jumps ahead, half-finished readying completes and the order restarts from the top.</div>
+    <div class="dim" ...${tipProps('Each player spends the seconds on readying (1 s), reloading (reload time), attachments (3 s), loading magazines (2 rounds/s), aiming (1 s, kept) or using items. Nobody attacks. Ending the break moves the clock on, finishes readying and restarts the turn order.')}>Free seconds for everyone to reload, ready and patch up — nobody attacks. ⓘ</div>
   </div>`;
 }

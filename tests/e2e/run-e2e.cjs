@@ -24,6 +24,7 @@ const gm = { role: 'gm' };
   const d = (a, p) => host.dispatch(a, p, gm);
   // --- campaign setup (what the GM would do in the Character/NPC managers)
   d('def.loadStarter', {}); // new campaigns start with an empty catalog
+  d('settings.update', { rules: { autoEndTurn: false, autoNpcDefense: false } }); // these scenarios drive every step by hand
   const pid = d('player.save', { name: 'Ivan (player)' }).result.id;
   const pc = d('char.create', { name: 'Stalker Ivan', kind: 'pc', ownerId: pid }).result.id;
   d('char.manualBuild', { id: pc, build: { st: 11, dx: 12, iq: 11, ht: 11, hp: 11, fp: 11, basicSpeed: 5.75, basicMove: 5, dodge: 8, skills: [{ name: 'Guns', spec: 'Rifle', level: 14 }, { name: 'Lockpicking', spec: '', level: 12 }] } });
@@ -222,6 +223,7 @@ const gm = { role: 'gm' };
   // ---------------- GM: run an NPC's turn from the NPC control bar (attack, reload)
   await G.click('.nav button:has-text("GM Dashboard")');
   await G.waitForSelector('.npc-bar');
+  if (await G.locator('.npc-bar.compact').count()) await G.click('.npc-bar button:has-text("NPC action")'); // a player's turn: open the NPC controls
   const npcName = s().characters[bandit2].name;
   await G.selectOption('.npc-bar select >> nth=0', bandit2);
   await G.selectOption('.npc-bar select >> nth=1', 'item:' + bAk);

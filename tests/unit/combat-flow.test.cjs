@@ -176,6 +176,7 @@ test('journal replay reproduces the exact state (crash recovery)', () => {
   // rebuild from the very first snapshot: replay every journal entry after campaign creation
   let n = 0;
   const base = campaign.emptyCampaign(new Context({ idgen: () => 'seed' + (++n), clock: () => '2026-01-01T00:00:00.000Z' }), { name: 'Test Campaign', test: true, seedCatalog: true });
+  Object.assign(base.settings.rules, { autoEndTurn: false, autoNpcDefense: false }); // same as setup()
   const e2 = new Engine(base);
   for (const entry of t.journal) e2.replay(entry);
   const strip = x => { const c = structuredClone(x); c.meta.processed = {}; return require('node:crypto').createHash('sha256').update(JSON.stringify(c)).digest('hex'); };

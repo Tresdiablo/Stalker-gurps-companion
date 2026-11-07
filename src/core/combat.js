@@ -79,6 +79,8 @@ function startEncounter(s, e, opts = {}, ctx = null) {
   if (fresh) {
     e.round = 1; e.turn = 0;
     const npcsDrawn = opts.npcsDrawn ?? e.env.npcsDrawn ?? true, pcsDrawn = opts.pcsDrawn ?? e.env.pcsDrawn ?? false;
+    // players see (and can target) the encounter's NPCs once it starts, unless it is an ambush
+    if (opts.revealNpcs ?? e.env.revealNpcs ?? true) for (const id of e.order) { const c = s.characters[id]; if (c?.kind === 'npc' && c.hidden) { c.hidden = false; c.reveal = { ...c.reveal, name: true }; } }
     for (const id of e.order) {
       const c = s.characters[id]; if (!c) continue;
       if (!(c.kind === 'npc' ? npcsDrawn : pcsDrawn)) continue;
