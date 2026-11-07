@@ -122,10 +122,12 @@ table.t tr.sel td { background: #1d3140; }
 @media (max-width: 1350px) { .inv-layout { grid-template-columns: 330px 1fr; } .inv-layout > :nth-child(3) { grid-column: 1 / -1; } }
 .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .slot { position: relative; min-height: 84px; border: 1px dashed var(--line2); border-radius: 4px; background: #0c151c; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.slot.wide { grid-column: span 3; min-height: 74px; } .slot.w2 { grid-column: span 2; }
+.slot.wide { grid-column: span 3; min-height: 104px; } .slot.w2 { grid-column: span 2; }
 .slot > .lbl { position: absolute; top: 3px; left: 6px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); pointer-events: none; }
 .slot.hover-ok { border-color: var(--good); background: #10261b; } .slot.hover-bad { border-color: var(--bad); background: #2a1414; }
-.slot .tile { position: relative !important; left: auto !important; top: auto !important; width: 92% !important; height: 70% !important; margin-top: 10px; }
+.slot .tile { position: relative !important; left: auto !important; top: auto !important; width: 96% !important; height: calc(100% - 20px) !important; margin-top: 14px; }
+.slot { align-items: stretch; }
+.slot > .dim { align-self: center; margin: auto; }
 .grid { position: relative; background-color: #0b141b; border: 1px solid var(--line2); border-radius: 3px;
   background-image: linear-gradient(to right, #1f2f3b 1px, transparent 1px), linear-gradient(to bottom, #1f2f3b 1px, transparent 1px);
   background-size: var(--cell) var(--cell); }
@@ -148,7 +150,8 @@ table.t tr.sel td { background: #1d3140; }
 .art { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .stage { position: relative; flex: none; }
 .stage > img { position: absolute; display: block; }
-.stage > img.base { inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.stage > .clip { position: absolute; overflow: hidden; }
+.stage > .clip > img.base { position: absolute; display: block; max-width: none; }
 .art .fallback { font-size: 22px; opacity: .25; font-weight: 700; letter-spacing: 1px; }
 .drag-ghost { position: fixed; pointer-events: none; z-index: 1000; opacity: .85; }
 .weight-bar { display: flex; gap: 10px; align-items: center; font-size: 12px; }

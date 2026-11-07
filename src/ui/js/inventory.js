@@ -5,14 +5,30 @@ import { conn } from './net.js';
 import * as M from './model.js';
 
 /* ================================================================ artwork */
-const natural = new Map(); // url -> {w,h}
+const natural = new Map(); // url -> { w, h, trim: {x, y, w, h} as fractions, broken }
 const naturalWaiters = new Set();
+
+/** Bounding box of the visible (non-transparent) pixels, as fractions of the image. */
+function alphaTrim(img) {
+  try {
+    const k = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight));
+    const cw = Math.max(1, Math.round(img.naturalWidth * k)), ch = Math.max(1, Math.round(img.naturalHeight * k));
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, cw, ch);
+    const d = g.getImageData(0, 0, cw, ch).data;
+    let x0 = cw, y0 = ch, x1 = -1, y1 = -1;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (d[(y * cw + x) * 4 + 3] > 16) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return null;
+    return { x: x0 / cw, y: y0 / ch, w: (x1 - x0 + 1) / cw, h: (y1 - y0 + 1) / ch };
+  } catch { return null; }
+}
+
 function measure(url) {
   if (!url || natural.has(url)) return natural.get(url);
   natural.set(url, null);
   const img = new Image();
-  img.onload = () => { natural.set(url, { w: img.naturalWidth, h: img.naturalHeight }); for (const f of naturalWaiters) f(); };
-  img.onerror = () => natural.set(url, { w: 1, h: 1, broken: true });
+  img.onload = () => { natural.set(url, { w: img.naturalWidth, h: img.naturalHeight, trim: alphaTrim(img) }); for (const f of naturalWaiters) f(); };
+  img.onerror = () => { natural.set(url, { w: 1, h: 1, broken: true }); for (const f of naturalWaiters) f(); };
   img.src = url;
   return null;
 }
@@ -22,14 +38,31 @@ function useNatural(urls) {
   return urls.map(u => (u ? measure(u) : null));
 }
 
+/** Size of an element, kept up to date with a ResizeObserver. */
+function useBoxSize(fallbackW, fallbackH) {
+  const ref = useRef();
+  const [size, setSize] = useState(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const update = () => { const w = el.clientWidth, h = el.clientHeight; if (w && h) setSize(s => (s && s.w === w && s.h === h ? s : { w, h })); };
+    update();
+    const ro = new ResizeObserver(update); ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, size || { w: fallbackW || 100, h: fallbackH || 50 }];
+}
+
 const ABBR = { optic: 'OPT', muzzle: 'MZL', foregrip: 'GRP', underbarrel: 'UB', stock: 'STK', side: 'TAC', magazine: 'MAG', other: 'ATT' };
 
 /**
  * Layered weapon/item artwork. Base image + attachment overlays at the weapon's mount anchors.
+ * The artwork scales to fill whatever box it is placed in (grid tile, equipment slot, list,
+ * workbench), and transparent borders are trimmed automatically so the item fills the space.
  * Priority: layered (all installed parts have art) → matching preconfigured variant → base image.
  * Rotation rotates the whole assembly. Original image files are never modified.
  */
 export function ItemArt({ v, item, w, h, rotated }) {
+  const [ref, box] = useBoxSize(w, h);
   const d = M.def(v, item);
   const parts = d?.weapon ? Object.entries(M.installed(v, item)).map(([mount, att]) => ({ mount: d.weapon.mounts.find(m => m.id === mount), att, ad: M.def(v, att) })).filter(p => p.mount && p.ad) : [];
   let baseRef = d?.image || '';
@@ -45,30 +78,45 @@ export function ItemArt({ v, item, w, h, rotated }) {
   const baseUrl = M.imageUrl(v, baseRef);
   const overlayUrls = layered.map(p => M.imageUrl(v, p.ad.attachment?.art?.image || p.ad.image));
   const [bn, ...on] = useNatural([baseUrl, ...overlayUrls]);
-  const boxW = rotated ? h : w, boxH = rotated ? w : h; // draw unrotated, then rotate the stage
+  const boxW = rotated ? box.h : box.w, boxH = rotated ? box.w : box.h; // draw unrotated, then rotate the stage
   const noArt = !baseUrl || bn?.broken;
   if (noArt && !layered.length) {
-    return html`<div class="art"><span class="fallback">${(d?.name || '?').slice(0, 3).toUpperCase()}</span></div>`;
+    return html`<div class="art" ref=${ref}><span class="fallback">${(d?.name || '?').slice(0, 3).toUpperCase()}</span></div>`;
   }
-  // without a base image, draw a neutral silhouette sized to the item's cell ratio so attachments still layer
-  const aspect = noArt ? (d.w / d.h) * 2.2 : bn ? bn.w / bn.h : boxW / boxH;
-  const pad = 4;
-  let sw = boxW - pad * 2, sh = sw / aspect;
-  if (sh > boxH - pad * 2) { sh = boxH - pad * 2; sw = sh * aspect; }
-  const crop = v.assets?.[baseRef]?.crop;
+  // visible part of the base image: the GM's explicit crop, else the automatic transparent-border trim
+  const ac = v.assets?.[baseRef]?.crop;
+  const crop = noArt ? { x: 0, y: 0, w: 1, h: 1 } : ac ? { x: ac.x / 100, y: ac.y / 100, w: ac.w / 100, h: ac.h / 100 } : bn?.trim || { x: 0, y: 0, w: 1, h: 1 };
+  // R = width/height of the whole base image (a silhouette ratio when there is no base image)
+  const R = noArt ? (d.w / d.h) * 2.2 : bn ? bn.w / bn.h : boxW / boxH;
+  // Work in "image-width units": x in [0,1] across the image, y scaled by 1/R so units are square.
+  // The content box is the visible base image plus every attachment overlay (rotation included),
+  // so attachments that stick out (scopes, suppressors) are never cut off.
+  let bx0 = crop.x, by0 = crop.y / R, bx1 = crop.x + crop.w, by1 = (crop.y + crop.h) / R;
+  const overlays = layered.map((p, i) => {
+    const n = on[i]; if (!n || n.broken) return null;
+    const art = p.ad.attachment?.art || {};
+    const off = p.mount.offsets?.[p.att.defId] || {};
+    const ow = (p.mount.scale || 0.2) * (art.scale || 1) * (off.scale || 1); // width units
+    const oh = ow * n.h / n.w;
+    const ax = art.anchorX ?? 0.5, ay = art.anchorY ?? 0.5;
+    const px = p.mount.x + (off.x || 0), py = (p.mount.y + (off.y || 0)) / R;
+    const rot = ((p.mount.rot || 0) + (off.rot || 0)) * Math.PI / 180;
+    for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const dx = (cx - ax) * ow, dy = (cy - ay) * oh;
+      const x = px + dx * Math.cos(rot) - dy * Math.sin(rot), y = py + dx * Math.sin(rot) + dy * Math.cos(rot);
+      bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y);
+    }
+    return { url: overlayUrls[i], ow, oh, ax, ay, px, py, rot: (p.mount.rot || 0) + (off.rot || 0), z: (p.mount.z ?? 1) + 1 };
+  });
+  const pad = 2;
+  const k = Math.max(1, Math.min((boxW - pad * 2) / (bx1 - bx0), (boxH - pad * 2) / (by1 - by0))); // px per width unit
+  const sw = (bx1 - bx0) * k, sh = (by1 - by0) * k;
   const style = { width: sw + 'px', height: sh + 'px', transform: rotated ? 'rotate(-90deg)' : 'none' };
-  return html`<div class="art"><div class="stage" style=${style}>
-    ${noArt ? html`<div style=${{ position: 'absolute', inset: '22% 0 28% 0', background: 'linear-gradient(#3a4650, #2a333b)', borderRadius: '4px', border: '1px solid #56636e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#9aa9b4' }}>${d?.name}</div>` : html`<img class="base" src=${baseUrl} draggable="false" style=${crop ? { objectViewBox: `inset(${crop.y}% ${100 - crop.x - crop.w}% ${100 - crop.y - crop.h}% ${crop.x}%)` } : null} />`}
-    ${layered.map((p, i) => {
-      const n = on[i]; if (!n || n.broken) return null;
-      const art = p.ad.attachment?.art || { anchorX: 0.5, anchorY: 0.5, scale: 1 };
-      const off = p.mount.offsets?.[p.att.defId] || {};
-      const ow = sw * (p.mount.scale || 0.2) * (art.scale || 1) * (off.scale || 1);
-      const oh = ow * n.h / n.w;
-      const ax = art.anchorX ?? 0.5, ay = art.anchorY ?? 0.5;
-      const left = (p.mount.x + (off.x || 0)) * sw - ax * ow, top = (p.mount.y + (off.y || 0)) * sh - ay * oh;
-      return html`<img src=${overlayUrls[i]} draggable="false" style=${{ left: left + 'px', top: top + 'px', width: ow + 'px', height: oh + 'px', zIndex: (p.mount.z ?? 1) + 1, transform: `rotate(${(p.mount.rot || 0) + (off.rot || 0)}deg)`, transformOrigin: `${ax * 100}% ${ay * 100}%` }} />`;
-    })}
+  const clip = { left: (crop.x - bx0) * k + 'px', top: (crop.y / R - by0) * k + 'px', width: crop.w * k + 'px', height: (crop.h / R) * k + 'px' };
+  return html`<div class="art" ref=${ref}><div class="stage" style=${style}>
+    ${noArt ? html`<div class="clip" style=${clip}><div style=${{ position: 'absolute', inset: '22% 0 28% 0', background: 'linear-gradient(#3a4650, #2a333b)', borderRadius: '4px', border: '1px solid #56636e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#9aa9b4' }}>${d?.name}</div></div>`
+      : html`<div class="clip" style=${clip}><img class="base" src=${baseUrl} draggable="false" style=${{ width: k + 'px', height: k / R + 'px', left: -crop.x * k + 'px', top: -(crop.y / R) * k + 'px' }} /></div>`}
+    ${overlays.map(o => o && html`<img src=${o.url} draggable="false" style=${{ left: (o.px - bx0) * k - o.ax * o.ow * k + 'px', top: (o.py - by0) * k - o.ay * o.oh * k + 'px', width: o.ow * k + 'px', height: o.oh * k + 'px', zIndex: o.z, transform: `rotate(${o.rot}deg)`, transformOrigin: `${o.ax * 100}% ${o.ay * 100}%` }} />`)}
   </div></div>`;
 }
 
