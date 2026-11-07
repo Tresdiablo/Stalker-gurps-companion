@@ -14,6 +14,11 @@ const path = require('node:path');
 const { Host } = require('../server/host');
 
 let host = null;
+// Automatic updates (installed builds only). Releases are published by the GitHub Actions
+// workflow to the repository named in package.json "build.publish".
+let autoUpdater = null;
+try { ({ autoUpdater } = require('electron-updater')); } catch { /* development checkout without dependency */ }
+let updateState = { status: 'idle', version: null };
 let gmWindow = null;
 const windows = new Set();
 
@@ -60,9 +65,43 @@ function menu() {
     ] },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] },
     { label: 'Help', submenu: [
+      { label: 'Check for updates…', enabled: !!autoUpdater && app.isPackaged, click: () => checkForUpdates(true) },
+      { label: updateState.status === 'ready' ? `Restart to install ${updateState.version}` : 'Restart to install update', enabled: updateState.status === 'ready', click: () => installUpdate() },
+      { type: 'separator' },
       { label: 'About', click: () => dialog.showMessageBox({ message: `S.T.A.L.K.E.R. GURPS Companion ${app.getVersion()}`, detail: 'GURPS is a trademark of Steve Jackson Games; this is an unofficial fan tool.\nBundles GURPS Character Sheet (GCS) by Richard A. Wilkes under the Mozilla Public License 2.0 — https://github.com/richardwilkes/gcs' }) },
     ] },
   ]);
+}
+
+function checkForUpdates(manual = false) {
+  if (!autoUpdater || !app.isPackaged) return;
+  updateState.manual = manual;
+  autoUpdater.checkForUpdates().catch(e => { if (manual) dialog.showMessageBox({ type: 'warning', message: 'Could not check for updates.', detail: e.message }); });
+}
+
+async function installUpdate() {
+  if (updateState.status !== 'ready') return;
+  stopping = true; // the campaign is saved by host.stop(); skip the normal quit handler
+  try { await host.stop(); } catch { /* still install */ }
+  autoUpdater.quitAndInstall(true, true); // silent install, then relaunch
+}
+
+function setupUpdates() {
+  if (!autoUpdater || !app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true; // if the GM chooses "Later", it installs on the next close
+  autoUpdater.on('update-available', info => { updateState = { status: 'downloading', version: info.version }; host.notify('update', `Update ${info.version} found — downloading in the background. Play can continue.`, false); });
+  autoUpdater.on('update-not-available', () => { if (updateState.manual) dialog.showMessageBox({ type: 'info', message: `You have the latest version (${app.getVersion()}).` }); updateState = { status: 'idle', version: null }; });
+  autoUpdater.on('error', e => { host.notify('update', `Update check failed: ${String(e.message || e).split('\n')[0]}`); if (updateState.manual) dialog.showMessageBox({ type: 'warning', message: 'Update failed.', detail: String(e.message || e) }); });
+  autoUpdater.on('update-downloaded', async info => {
+    updateState = { status: 'ready', version: info.version };
+    Menu.setApplicationMenu(menu());
+    host.notify('update', `Version ${info.version} is ready. It installs when you close the app (or Help → Restart to install).`, false);
+    const r = await dialog.showMessageBox(gmWindow, { type: 'info', buttons: ['Restart and update now', 'Later (install when I close the app)'], defaultId: 1, cancelId: 1, message: `Version ${info.version} has been downloaded.`, detail: 'Your campaign is saved first. Connected players reconnect automatically after the restart.' });
+    if (r.response === 0) installUpdate();
+  });
+  setTimeout(() => checkForUpdates(false), 8000); // after start-up
+  setInterval(() => checkForUpdates(false), 4 * 3600 * 1000).unref();
 }
 
 app.whenReady().then(async () => {
@@ -85,6 +124,7 @@ app.whenReady().then(async () => {
   gmWindow = makeWindow(host.url(), { title: 'S.T.A.L.K.E.R. GURPS Companion — Game Master' });
   gmWindow.on('closed', () => { gmWindow = null; });
   setInterval(() => Menu.setApplicationMenu(menu()), 15000).unref(); // refresh player list
+  setupUpdates();
 });
 
 app.on('window-all-closed', () => app.quit());

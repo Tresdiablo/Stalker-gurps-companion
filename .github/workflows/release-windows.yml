@@ -1,0 +1,71 @@
+# Builds the Windows installer on GitHub's Windows machines and publishes it as a release.
+# Installed copies of the app find the new release and update themselves.
+#
+# Release a new version:  bump "version" in package.json, commit, then push a tag "v<version>"
+#   (e.g. v1.0.5) — or run this workflow by hand from the Actions tab.
+# One-time setup (see docs/UPDATES.md): public repo Tresdiablo/stalker-gurps-companion-releases
+#   and a repository secret RELEASES_TOKEN that can create releases there.
+name: Windows installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test
+
+      - name: Tag must match package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match package.json version $v" }
+
+      - name: Bundle the official GCS (SHA-256 verified)
+        shell: pwsh
+        run: |
+          $ver = '5.58.1'
+          $sha = 'fb209e114a8b9e2277c3b466e28623a76d907d04187879914223e997edd3c91c'
+          $zip = Join-Path $env:RUNNER_TEMP 'gcs.zip'
+          Invoke-WebRequest "https://github.com/richardwilkes/gcs/releases/download/v$ver/gcs-$ver-windows-amd64.zip" -OutFile $zip
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $sha) { throw "GCS download checksum mismatch ($actual)" }
+          Expand-Archive $zip -DestinationPath vendor/gcs -Force
+          if (-not (Test-Path vendor/gcs/gcs.exe)) { throw 'gcs.exe missing from the GCS archive' }
+
+      - name: Build installer (and publish when the release token is configured)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if ($env:GH_TOKEN) { npx electron-builder --win nsis --x64 --publish always }
+          else { Write-Host 'RELEASES_TOKEN not set: building without publishing (download the installer from this run''s artifacts).'; npx electron-builder --win nsis --x64 --publish never }
+          if ($LASTEXITCODE -ne 0) { throw 'electron-builder failed' }
+
+      - name: Keep the installer as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: STALKER-GURPS-Companion-Windows
+          path: |
+            dist/*.exe
+            dist/latest.yml
+          retention-days: 30

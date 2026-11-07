@@ -24,6 +24,8 @@ The app handles the bookkeeping. The GM keeps authority over every consequence.
    * builds `STALKER-GURPS-Companion-Setup-<version>.exe` with electron-builder and installs it for your Windows user. No administrator rights are needed.
 3. Start **STALKER GURPS Companion** from the Start menu. The GM window opens.
 
+**Updates are automatic** once set up: GitHub builds each new version and the installed app downloads it and offers to restart. See [`docs/UPDATES.md`](docs/UPDATES.md) for the one-time setup (a public releases repo plus one secret).
+
 For a development run without an installer, use `RUN_DEV.cmd` or `npm install && npm start`.
 
 ### Running without Electron (GM server, Linux/macOS, testing)
