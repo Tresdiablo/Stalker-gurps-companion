@@ -142,3 +142,37 @@ test('host allows at most 8 people at once (GM + 7 players); extra windows of on
   for (const x of cookies) x.c.close(); extra.close(); reopen.close(); gm.close();
   await host.stop();
 });
+
+test('GM password (default "goyim"), main-menu join, character lock, logout', async () => {
+  const host = new Host({ dataDir: tmp(), port: 0, log: { error() {} } });
+  await host.start();
+  const base = `http://127.0.0.1:${host.port}`;
+  const post = (u, body, cookie) => fetch(base + u, { method: 'POST', body: JSON.stringify(body), headers: cookie ? { cookie } : {} });
+  assert.equal((await post('/api/gm-login', { password: 'nope' })).status, 403);
+  const ok = await post('/api/gm-login', { password: 'goyim' });
+  assert.equal(ok.status, 200);
+  const gmCookie = ok.headers.get('set-cookie').split(';')[0];
+  const gm = await client(host.port, gmCookie);
+  const pc = (await gm.call('action', { action: 'char.create', payload: { name: 'Ivan', kind: 'pc' } })).result.id;
+  const j1 = await post('/api/join', { charId: pc });
+  assert.equal(j1.status, 200);
+  const c1 = j1.headers.get('set-cookie').split(';')[0];
+  const p1 = await client(host.port, c1);
+  await p1.waitView(v => v.playingCharId === pc && v.characters[pc]?.mine);
+  const j2 = await post('/api/join', { charId: pc });
+  assert.equal(j2.status, 409, 'locked while someone plays it');
+  const menu = await (await fetch(base + '/api/menu')).json();
+  assert.ok(menu.characters.find(c => c.id === pc).playedBy);
+  await post('/api/logout', {}, c1);
+  await new Promise(r => setTimeout(r, 150));
+  host.sessions.forEach(sess => { if (sess.charId === pc) sess.joinedAt = 0; });
+  assert.equal((await post('/api/join', { charId: pc })).status, 200, 'free again after logout');
+  // change the password
+  const bad = await gm.host('gm.password', { current: 'x', next: 'newpass' });
+  assert.equal(bad.ok, false);
+  await gm.host('gm.password', { current: 'goyim', next: 'newpass' });
+  assert.equal((await post('/api/gm-login', { password: 'goyim' })).status, 403);
+  assert.equal((await post('/api/gm-login', { password: 'newpass' })).status, 200);
+  gm.close(); p1.close();
+  await host.stop();
+});

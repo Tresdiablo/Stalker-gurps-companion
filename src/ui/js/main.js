@@ -1,6 +1,8 @@
 // Application shell: login, navigation, routing and global shortcuts.
 import { html, useState, useEffect, mount, Toasts, ContextMenu, Modals, Tooltip, runHost, useLocal, tipProps, toast } from './ui.js';
-import { conn, subscribe, start, whoami, login } from './net.js';
+import { conn, subscribe, start, whoami, login, logout, play } from './net.js';
+import { MainMenu } from './menu.js';
+import { TurnBanner, focusEncounter } from './turns.js';
 import * as M from './model.js';
 import { CharacterInventory } from './inventory.js';
 import { CharacterSheet } from './character.js';
@@ -58,6 +60,7 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') { const s = document.querySelector('.search'); if (s) { e.preventDefault(); s.focus(); } }
       if (e.target.matches('input,textarea,select') || e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.key === 'g' || e.key === 'G') && conn.view?.role === 'gm' && !document.querySelector('.modal')) { e.preventDefault(); const sel = window.__sgcSelected; openSpawn(conn.view, sel && conn.view.characters[sel] ? 'char:' + sel : getSpawnTarget()); return; }
+      if ((e.key === 'e' || e.key === 'E') && conn.view?.role === 'player') { const vv = conn.view; const enc = focusEncounter(vv, vv.playingCharId); if (enc && !enc.break && enc.order[enc.turn] === vv.playingCharId) { import('./ui.js').then(u => u.run('enc.next', { id: enc.id, expect: vv.playingCharId })); } return; }
       const n = Number(e.key);
       if (n >= 1 && n <= 9) { const pages = conn.view?.role === 'gm' && localStorage.getItem('sgc:mode') !== '"player"' ? GM_PAGES : PLAYER_PAGES; if (pages[n - 1]) setPage(pages[n - 1][0]); }
     };
@@ -66,11 +69,11 @@ function App() {
   }, []);
   useEffect(() => { const notes = conn.view?.host?.notes || []; const last = notes[notes.length - 1]; if (last && last.id !== window.__lastNote) { if (window.__lastNote !== undefined || last.kind === 'recovery') toast(last.text, last.kind === 'recovery' ? 'ok' : 'info'); window.__lastNote = last.id; } });
   if (c.status === 'full') return html`<div class="login panel"><header><h2>Session full</h2></header><div class="body col"><div>${c.full || 8} people are already connected (the GM plus ${(c.full || 8) - 1} players). You will be let in automatically when someone leaves.</div><div class="tiny dim">Retrying every 10 seconds…</div></div></div>`;
-  if (c.status === 'unauthorized' && !v) return html`<${Login} />`;
+  if (c.status === 'unauthorized' && !v) return html`<${MainMenu} />`;
   if (!v) return html`<div class="boot">S.T.A.L.K.E.R. / GURPS — ${c.status === 'offline' ? 'host offline, retrying…' : 'connecting…'}</div>`;
 
   const mine = M.myChars(v);
-  const charId = (mine.find(x => x.id === charSel) || mine[0])?.id || null;
+  const charId = v.playingCharId && v.characters[v.playingCharId] ? v.playingCharId : (mine.find(x => x.id === charSel) || mine[0])?.id || null;
   const playerMode = !gm || mode === 'player';
   const pages = playerMode ? PLAYER_PAGES : GM_PAGES;
   const cur = pages.some(p => p[0] === page) ? page : pages[0][0];
@@ -97,19 +100,24 @@ function App() {
     default: body = null;
   }
   const tts = v.host?.tts;
-  if (!started) return html`<div><${StartScreen} v=${v} onEnter=${enter} /><${Toasts} /><${Modals} /><${ContextMenu} /><${Tooltip} /></div>`;
+  // players: a window plays exactly one character (chosen in the main menu, or here for GM-opened windows)
+  const needsChar = !gm && !v.playingCharId && mine.length > 0;
+  if ((gm && !started) || needsChar) return html`<div><${StartScreen} v=${v} onEnter=${async id => { if (!gm && id) { try { await play(id); } catch (e) { toast(e.message, 'error'); return; } } enter(id); }} /><${Toasts} /><${Modals} /><${ContextMenu} /><${Tooltip} /></div>`;
   const online = v.host?.online || [];
   return html`<div class="shell">
     <div class="topbar">
       <div class="brand" style=${{ cursor: 'pointer' }} onClick=${toStart} title="Back to the start screen">S.T.A.L.K.E.R. / GURPS<small>COMPANION</small></div>
       <span class="campaign-name">${v.name}</span>${v.test ? html`<span class="test-badge">TEST CAMPAIGN</span>` : null}
       <span class="grow"></span>
-      ${mine.length && playerMode ? html`<label class="row small">Character <select value=${charId || ''} onChange=${e => setCharSel(e.target.value)}>${mine.map(x => html`<option value=${x.id}>${x.name}</option>`)}</select></label>` : null}
-      ${gm ? html`<div class="tabs"><button class=${!playerMode ? 'active' : ''} onClick=${() => { setMode('gm'); setPage('gm-dash'); }}>Game Master</button><button class=${playerMode ? 'active' : ''} onClick=${() => { setMode('player'); setPage('inventory'); }} ...${tipProps('View any player character through the player pages (GM permissions still apply).')}>Player view</button></div>` : html`<span class="chip info">${v.playerName}</span>`}
+      ${!gm && v.playingCharId ? html`<span class="chip info">Playing: <b>${v.characters[v.playingCharId]?.name}</b></span>` : null}
+      ${gm && mine.length && playerMode ? html`<label class="row small">Character <select value=${charId || ''} onChange=${e => setCharSel(e.target.value)}>${mine.map(x => html`<option value=${x.id}>${x.name}</option>`)}</select></label>` : null}
+      ${gm ? html`<div class="tabs"><button class=${!playerMode ? 'active' : ''} onClick=${() => { setMode('gm'); setPage('gm-dash'); }}>Game Master</button><button class=${playerMode ? 'active' : ''} onClick=${() => { setMode('player'); setPage('inventory'); }} ...${tipProps('View any player character through the player pages (GM permissions still apply).')}>Player view</button></div>` : null}
       <span class="chip ${online.length >= (v.host?.maxPeople || 8) ? 'warn' : ''}" ...${tipProps(`Connected now:\n${online.map(p => p.name).join('\n') || '—'}\nLimit: ${v.host?.maxPeople || 8} people (GM included)`)}>👥 ${online.length}/${v.host?.maxPeople || 8}</span>
+      <button class="small ghost" onClick=${() => logout()} title=${gm ? 'Sign out of the GM account (back to the main menu)' : 'Back to the main menu to play another character'}>⏏ Main menu</button>
       <span class="row small" ...${tipProps(`Host: ${c.status}${gm ? `\nTabletop Simulator: ${tts?.enabled ? (tts.reachable ? 'connected' : 'not reachable') : 'off'}${v.host?.lan ? `\nHosting for other computers on port ${v.host.port}` : ''}` : ''}`)}><span class="status-dot ${c.status === 'online' ? 'on' : 'off'}"></span>${gm ? html`<span>TTS</span><span class="status-dot ${tts?.reachable ? 'on' : tts?.enabled ? 'wait' : ''}"></span>` : null}</span>
     </div>
     <nav class="nav">${pages.map(([k, l], i) => html`<button class=${cur === k ? 'active' : ''} onClick=${() => go(k)} title=${`Shortcut ${i + 1}`}>${l}${(k === 'gm-dash' || k === 'combat') && pending ? html`<span class="badge">${pending}</span>` : null}</button>`)}</nav>
+    <div class="turn-slot"><${TurnBanner} v=${v} charId=${charId} go=${go} selectChar=${setSelected} /></div>
     <main class="main">${c.status !== 'online' ? html`<div class="notice-bar" style=${{ marginBottom: '10px' }}>Connection to the host lost — reconnecting. Actions will be retried safely.</div>` : null}${body}</main>
     <${Toasts} /><${ContextMenu} /><${Modals} /><${Tooltip} />
   </div>`;

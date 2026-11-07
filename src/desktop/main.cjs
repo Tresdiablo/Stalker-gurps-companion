@@ -56,8 +56,7 @@ function menu() {
       { type: 'separator' }, { role: 'quit' },
     ] },
     { label: 'Windows', submenu: [
-      { label: 'New GM window', accelerator: 'CmdOrCtrl+Shift+N', click: send(() => makeWindow(host.url())) },
-      { label: 'Player window…', submenu: Object.values(host.current.state.players).map(p => ({ label: p.name, click: () => makeWindow(host.playerLink(p.id), { title: `Player — ${p.name}`, width: 1400, height: 900 }) })) },
+      { label: 'New window (main menu)', accelerator: 'CmdOrCtrl+Shift+N', click: send(() => makeWindow(host.menuUrl(), { title: 'S.T.A.L.K.E.R. GURPS Companion', width: 1400, height: 900 })) },
     ] },
     { label: 'GCS', submenu: [
       { label: 'Open GURPS Character Sheet', click: send(() => { try { host.gcs.launch(); } catch (e) { dialog.showErrorBox('GCS', e.message); } }) },
@@ -121,9 +120,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('pick-gcs-exe', async (ev) => { const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(ev.sender), { title: 'Locate gcs.exe', properties: ['openFile'], filters: [{ name: 'Program', extensions: ['exe', ''] }] }); return r.canceled ? null : r.filePaths[0]; });
   ipcMain.handle('open-window', (_ev, url, title) => { if (allowedUrl(url)) makeWindow(url, { title: `Companion — ${String(title || '').slice(0, 60)}`, width: 1400, height: 900 }); return true; });
   Menu.setApplicationMenu(menu());
-  gmWindow = makeWindow(host.url(), { title: 'S.T.A.L.K.E.R. GURPS Companion — Game Master' });
+  // opens on the main menu: the GM signs in with the GM password, players pick a character
+  gmWindow = makeWindow(host.menuUrl(), { title: 'S.T.A.L.K.E.R. GURPS Companion' });
   gmWindow.on('closed', () => { gmWindow = null; });
-  setInterval(() => Menu.setApplicationMenu(menu()), 15000).unref(); // refresh player list
   setupUpdates();
 });
 

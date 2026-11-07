@@ -43,7 +43,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: v
 .kbd { font-family: Consolas, monospace; font-size: 11px; padding: 0 4px; border: 1px solid var(--line2); border-radius: 3px; color: var(--muted); }
 
 /* layout */
-.shell { display: grid; grid-template-rows: auto auto 1fr; height: 100%; }
+.shell { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); height: 100%; }
 .topbar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(#111c25, #0d161e); }
 .brand { font-size: 18px; letter-spacing: 4px; font-weight: 600; color: #dbe5ec; white-space: nowrap; }
 .brand small { font-size: 10px; letter-spacing: 2px; color: var(--teal); margin-left: 8px; }
@@ -215,3 +215,29 @@ button.big { padding: 10px 16px; font-size: 14px; letter-spacing: 1px; }
 .npc-title { letter-spacing: 1.5px; text-transform: uppercase; font-size: 12px; color: #ffb1a8; }
 .spawn-to { display: flex; gap: 6px; align-items: center; padding: 6px; border: 1px solid #4f7a5f; border-radius: 4px; background: #13231a; }
 .cat-row .spawn-btn { opacity: 0; padding: 0 7px; } .cat-row:hover .spawn-btn, .cat-row.sel .spawn-btn { opacity: 1; }
+
+/* main menu */
+.menu-body { display: grid; grid-template-columns: minmax(320px, 620px) minmax(280px, 380px); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .menu-body { grid-template-columns: 1fr; width: min(620px, 100%); } }
+.menu-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 8px; }
+.menu-char { display: flex; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg2); }
+.menu-char:hover:not(.locked) { border-color: var(--teal); }
+.menu-char.locked { opacity: .55; }
+.menu-char .portrait { width: 52px; height: 52px; }
+.menu-initial { display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: var(--muted); }
+
+/* turn cycle */
+.turn-bar { display: flex; gap: 10px; align-items: center; padding: 6px 16px; background: #101b24; border-bottom: 1px solid var(--line); font-size: 13px; }
+.turn-bar.mine { background: linear-gradient(90deg, #3a2f12, #1a1a12 60%, #101b24); border-bottom-color: #8a6d2a; }
+.turn-bar.npc { background: linear-gradient(90deg, #3a1818, #1d1414 60%, #101b24); border-bottom-color: #7d3d3d; }
+.turn-bar.break { background: linear-gradient(90deg, #13283a, #101b24); border-bottom-color: #3f5f7d; }
+.turn-pop-back { position: fixed; inset: 0; background: #0008; z-index: 1400; display: flex; align-items: center; justify-content: center; }
+.turn-pop { min-width: 380px; max-width: 92vw; text-align: center; padding: 22px 28px; border-radius: 10px; background: var(--panel); border: 1px solid var(--accent); box-shadow: 0 0 0 1px #c8a46a44, 0 20px 60px #000; animation: popin .18s ease-out; }
+.turn-pop.npc { border-color: var(--bad); box-shadow: 0 0 0 1px #e66b6b44, 0 20px 60px #000; }
+.turn-pop-kicker { letter-spacing: 4px; text-transform: uppercase; font-size: 12px; color: var(--accent); }
+.turn-pop.npc .turn-pop-kicker { color: #ffb1a8; }
+.turn-pop-name { font-size: 30px; font-weight: 600; margin: 6px 0 8px; letter-spacing: 1px; }
+@keyframes popin { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.tile .busy { position: absolute; left: 0; right: 0; bottom: 0; background: #3a2f12dd; color: #ffe7a8; font-size: 9px; text-align: center; z-index: 5; pointer-events: none; }
+.slot.ready-slot { border-color: #8a6d2a; background: #17150d; }
+.slot.ready-slot > .lbl { color: var(--accent); }

@@ -17,6 +17,10 @@ const DEFAULT_RULES = {
   armorDT: false,
   armorDurability: false,
   conditionAffectsDR: false,
+  // One-second combat (GURPS standard): turn order, readying items, reload time.
+  readyRequired: true, // attacks need the weapon in hands; readying takes a turn (B366)
+  enforceTurns: true, // players act only on their own turn during combat
+  skipDown: true, // dead/unconscious combatants are skipped in the turn order
   // Workflow options.
   crafting: true,
   playerSelfAdjust: true, // players may adjust their own HP/FP manually (e.g. when told by the GM)

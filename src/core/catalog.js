@@ -26,6 +26,7 @@ const CATEGORIES = {
 const RARITY = { common: 100, uncommon: 45, rare: 15, 'very rare': 5, unique: 1 };
 
 const EQUIP_SLOTS = {
+  ready: { label: 'In hands (ready)', categories: null },
   primary: { label: 'Primary Weapon', categories: ['weapon'] },
   secondary: { label: 'Secondary Weapon', categories: ['weapon'] },
   holster: { label: 'Holster', categories: ['weapon'], subs: ['Pistols', 'Revolvers'] },
@@ -119,9 +120,10 @@ function normalizeDef(input) {
 
 /** Default equipment slots for a definition. */
 function slotsFor(def) {
-  if (def.slots && def.slots.length) return def.slots;
+  if (def.slots && def.slots.length) return def.slots.includes('ready') ? def.slots : [...def.slots, 'ready'];
   const out = [];
   for (const [slot, rule] of Object.entries(EQUIP_SLOTS)) {
+    if (!rule.categories) { out.push(slot); continue; } // anything can be held in hands
     if (!rule.categories.includes(def.category)) continue;
     if (rule.subs && !rule.subs.includes(def.sub)) continue;
     if (def.category === 'weapon' && (slot === 'primary' || slot === 'secondary') && def.sub === 'Melee Weapons') continue;

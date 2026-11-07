@@ -68,12 +68,13 @@ function GmStart({ v, onEnter }) {
 
 function PlayerStart({ v, onEnter }) {
   const mine = M.myChars(v);
+  const busy = new Set((v.host?.online || []).filter(p => p.charId).map(p => p.charId));
   return html`<div class="start-body" style=${{ gridTemplateColumns: 'minmax(300px, 440px)' }}>
     <div class="start-card primary-card">
       <h3>Welcome, ${v.playerName}</h3>
       <div class="start-camp">${v.name}</div>
-      ${mine.length ? html`<div class="start-list">${mine.map(c => html`<div class="list-item" onClick=${() => onEnter(c.id)}>
-        <span class="grow"><b>${c.name}</b><br /><span class="tiny muted">${v.settings?.ranks?.[c.rank - 1]?.name || ''} · HP ${c.session.hp}/${c.build?.hp} · ${money(c.session.money)}</span></span><span class="muted small">Play ▸</span></div>`)}</div>`
+      ${mine.length ? html`<div class="start-list">${mine.map(c => html`<div class="list-item ${busy.has(c.id) ? 'dim' : ''}" onClick=${() => !busy.has(c.id) && onEnter(c.id)} title=${busy.has(c.id) ? 'Someone is already playing this character' : ''}>
+        <span class="grow"><b>${c.name}</b><br /><span class="tiny muted">${v.settings?.ranks?.[c.rank - 1]?.name || ''} · HP ${c.session.hp}/${c.build?.hp} · ${money(c.session.money)}</span></span><span class="muted small">${busy.has(c.id) ? '🔒 in use' : 'Play ▸'}</span></div>`)}</div>`
         : html`<div class="muted">The GM has not given you a character yet. You can still look around.</div><button class="primary big" onClick=${() => onEnter()}>Enter ▶</button>`}
     </div>
   </div>`;

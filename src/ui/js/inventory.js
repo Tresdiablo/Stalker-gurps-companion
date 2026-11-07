@@ -156,6 +156,7 @@ export function Tile({ v, it, ctx, style, inSlot, price }) {
     <span class="name">${M.itemName(v, it)}</span>
     ${it.cond !== undefined && it.cond < 100 ? html`<span class="cond">${it.cond}%</span>` : null}
     ${badges.length ? html`<span class="badges">${badges.map(b => html`<span>${b}</span>`)}</span>` : null}
+    ${it.readyAt ? html`<span class="busy">⏳ ${it.busy || 'readying'} · R${it.readyAt}</span>` : null}
     ${price !== undefined ? html`<span class="price">${money(price)}</span>` : d?.stack > 1 ? html`<span class="qty">${it.qty}</span>` : null}
     ${d?.magazine || d?.weapon?.integral ? html`<span class="rounds">${M.roundCount(it.rounds)}/${d.magazine?.capacity || d.weapon.integral.capacity}</span>` : d?.weapon?.kind === 'ranged' && it.feed ? html`<span class="rounds">${it.feed.rounds}</span>` : null}
   </div>`;
@@ -343,6 +344,11 @@ export function itemMenu(e, v, it, ctx) {
     items.push({ label: `Buy (${money(v.traderPrices[it.id])})`, onClick: () => buyItem(v, it, ctx) }, { label: 'Inspect', onClick: () => inspect(v, it) });
     return openMenu(e, items);
   }
+  if (charId && (mine || gm) && it.loc?.slot !== 'ready') {
+    items.push({ label: '✋ Ready (put in hands)', hint: 'next turn', onClick: () => run('item.ready', { itemId: it.id, charId }, { ok: true }) });
+    if (d.weapon || d.category === 'ammo' || d.category === 'magazine') items.push({ label: '⚡ Fast-Draw (roll to ready now)', onClick: () => run('item.ready', { itemId: it.id, charId, fastDraw: true }, { ok: true }) });
+    if (gm) items.push({ label: 'Ready instantly (GM)', onClick: () => run('item.ready', { itemId: it.id, charId, instant: true }, { ok: true }) });
+  }
   if (d.weapon?.kind === 'ranged' && (mine || gm)) items.push({ label: '↻ Reload', hint: 'best magazine / loose rounds', onClick: () => run('weapon.reload', { weaponId: it.id }, { ok: true }) });
   items.push({ label: 'Inspect', hint: 'dbl-click', onClick: () => inspect(v, it) });
   if (d.container) items.push({ label: 'Open', onClick: () => ctx.openContainer?.(it.id) });
@@ -460,6 +466,7 @@ export function CharacterInventory({ v, charId, extraRight, customize, traderId 
   return html`<div class="inv-layout">
     <section class="panel"><header><h2 class="grow">Equipment</h2><span class="muted small">${c.name}</span></header><div class="body col">
       <div class="slots">
+        <${Slot} v=${v} charId=${charId} slot="ready" label="✋ In hands (ready) — drag here to ready; usable next turn in combat" ctx=${ctx} cls="wide ready-slot" />
         <${Slot} v=${v} charId=${charId} slot="helmet" label="Helmet" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="face" label="Face" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="armor" label="Body armor" ctx=${ctx} />
         <${Slot} v=${v} charId=${charId} slot="rig" label="Rig" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="backpack" label="Backpack" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="melee" label="Melee" ctx=${ctx} />
         <${Slot} v=${v} charId=${charId} slot="primary" label="Primary weapon" ctx=${ctx} cls="wide" /><${Slot} v=${v} charId=${charId} slot="secondary" label="Secondary weapon" ctx=${ctx} cls="wide" />

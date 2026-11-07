@@ -20,6 +20,7 @@ const inv = require('./inventory');
 const weapons = require('./weapons');
 const chars = require('./characters');
 const armor = require('./armor');
+const tempo = require('./tempo');
 
 /* ================================================================== encounters */
 
@@ -66,22 +67,46 @@ function setDistance(e, a, b, yards) {
 }
 function getDistance(e, a, b) { const v = e?.distances?.[distanceKey(a, b)]; return v === undefined ? null : v; }
 
-function startEncounter(s, e) {
+/**
+ * Start (or resume) an encounter. Options: npcsDrawn / pcsDrawn put each combatant's first weapon
+ * in hands so they can fight from round 1 (an ambush leaves the victims' weapons slung).
+ */
+function startEncounter(s, e, opts = {}, ctx = null) {
   assert(e.order.length, 'Add combatants first.');
   for (const other of Object.values(s.encounters)) if (other.id !== e.id && other.status === 'active') other.status = 'paused';
+  const fresh = e.round < 1;
   e.status = 'active';
-  if (e.round < 1) { e.round = 1; e.turn = 0; }
+  if (fresh) {
+    e.round = 1; e.turn = 0;
+    const npcsDrawn = opts.npcsDrawn ?? e.env.npcsDrawn ?? true, pcsDrawn = opts.pcsDrawn ?? e.env.pcsDrawn ?? false;
+    for (const id of e.order) {
+      const c = s.characters[id]; if (!c) continue;
+      if (!(c.kind === 'npc' ? npcsDrawn : pcsDrawn)) continue;
+      const ref = 'char:' + id;
+      if (inv.childrenOf(s, ref).some(i => i.loc.slot === 'ready')) continue;
+      const w = ['primary', 'holster', 'secondary', 'melee'].map(sl => inv.childrenOf(s, ref).find(i => i.loc.slot === sl)).find(i => i && s.defs[i.defId]?.weapon);
+      if (w) { w.loc = { p: ref, slot: 'ready' }; delete w.readyAt; delete w.busy; }
+    }
+    tempo.skipDown(s, e);
+  }
+  e.turnStartedAt = ctx ? ctx.now() : null;
 }
 
 /** Advance to the next combatant; expires shock and temporary modifiers per B419. */
-function nextTurn(s, e) {
+function nextTurn(s, e, ctx = null) {
   assert(e.status === 'active', 'Encounter is not active.');
   const current = e.combatants[e.order[e.turn]];
   if (current) current.shock = 0; // shock affects only the victim's next turn
+  assert(!e.break, 'End the break first.');
   e.turn += 1;
   if (e.turn >= e.order.length) { e.turn = 0; e.round += 1; }
+  const skipped = tempo.skipDown(s, e);
   for (const cs of Object.values(e.combatants)) cs.tempMods = cs.tempMods.filter(m => !m.expiresRound || m.expiresRound >= e.round);
-  return { round: e.round, actorId: e.order[e.turn] };
+  for (const it of Object.values(s.items)) if (it.readyAt && it.readyAt <= e.round) { delete it.readyAt; delete it.busy; }
+  const cs = e.combatants[e.order[e.turn]];
+  if (cs) { cs.maneuver = null; }
+  e.turnStartedAt = ctx ? ctx.now() : null;
+  return { round: e.round, actorId: e.order[e.turn], skipped };
 }
 
 function endEncounter(s, ctx, e) { e.status = 'ended'; e.endedAt = ctx.now(); }

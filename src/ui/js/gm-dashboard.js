@@ -57,7 +57,7 @@ export function NpcControl({ v, enc, actorId, setActorId, setSelected }) {
   if (!actor) return html`<div class="npc-bar"><span class="muted">All NPCs in this encounter are down.</span></div>`;
   const cs = enc.combatants[actor.id];
   const weapons = weaponOptions(v, actor).filter(o => !o.item || o.item.loc.g !== 'ground');
-  const w = weapons.find(o => o.key === wKey) || weapons.find(o => o.item && cs?.readyWeaponId === o.item.id) || weapons.find(o => o.kind === 'ranged' && o.rounds > 0) || weapons[0];
+  const w = weapons.find(o => o.key === wKey) || weapons.find(o => o.item?.loc.slot === 'ready') || weapons.find(o => o.item && cs?.readyWeaponId === o.item.id) || weapons.find(o => o.kind === 'ranged' && o.rounds > 0) || weapons[0];
   const target = v.characters[tgt] && tgt !== actor.id ? tgt : (cs?.targetId && alive(v.characters[cs.targetId]) ? cs.targetId : defaultTarget(v, enc, actor));
   const rof = parseInt(w?.rof, 10) || 1;
   const maxShots = Math.max(1, Math.min(rof, w?.rounds === Infinity ? rof : w?.rounds || 1));
@@ -85,7 +85,9 @@ export function NpcControl({ v, enc, actorId, setActorId, setSelected }) {
       ${dist === null && target ? html`<span class="chip warn" title="Set it in the selected combatant's Distances">no distance set</span>` : null}
     </div>
     <div class="row" style=${{ marginTop: '6px' }}>
-      <button class="primary" disabled=${busy || !w || !alive(actor) || (w.kind === 'ranged' && !w.rounds)} onClick=${attack}>🎯 Attack${w?.kind === 'ranged' ? ` (${w.rounds === Infinity ? '∞' : w.rounds} rds)` : ''}</button>
+      ${w?.item && w.item.loc.slot !== 'ready' && v.settings?.rules?.readyRequired !== false ? html`<button class="good" disabled=${busy} onClick=${() => act(() => run('item.ready', { itemId: w.item.id, charId: actor.id }, { ok: true }))} title="Ready maneuver: usable next round. Right-click the item for Fast-Draw or instant readying.">✋ Draw (ready)</button>` : null}
+      ${w?.item?.readyAt ? html`<span class="chip warn">${w.item.busy || 'readying'} → R${w.item.readyAt}</span>` : null}
+      <button class="primary" disabled=${busy || !w || !alive(actor) || enc.break || (w.kind === 'ranged' && !w.rounds) || (w.item && ((v.settings?.rules?.readyRequired !== false && w.item.loc.slot !== 'ready') || (w.item.readyAt && enc.round < w.item.readyAt)))} onClick=${attack}>🎯 Attack${w?.kind === 'ranged' ? ` (${w.rounds === Infinity ? '∞' : w.rounds} rds)` : ''}</button>
       ${w?.item && w.kind === 'ranged' ? html`<button disabled=${busy} onClick=${reload} class=${!w.rounds ? 'good' : ''}>↻ Reload</button>` : null}
       <button disabled=${busy || !w?.item} onClick=${aim} title="Aim maneuver at the chosen target (adds Acc, then +1/+2)">Aim${cs?.aim ? ` (${cs.aim.turns})` : ''}</button>
       <select value="" onChange=${e => { if (e.target.value) run('combat.maneuver', { id: enc.id, charId: actor.id, maneuver: e.target.value, weaponId: w?.item?.id, targetId: target }); e.target.value = ''; }}><option value="">Other maneuver…</option>${M.MANEUVERS.filter(([k]) => !['attack', 'aim'].includes(k)).map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select>
@@ -112,7 +114,7 @@ export function GmDashboard({ v, selected, setSelected }) {
   useEffect(() => {
     const key = e => {
       if (e.target.matches('input,textarea,select') || e.ctrlKey || e.metaKey) return;
-      if (e.key === 'n' && enc?.status === 'active') run('enc.next', { id: enc.id });
+      if (e.key === 'n' && enc?.status === 'active' && !enc.break) run('enc.next', { id: enc.id, expect: enc.order[enc.turn] });
       if (e.key === 'a') { const ev = v.events[focus] || pending.find(x => x.stage === 'resolved' && x.proposal && !(x.applications || []).some(a => !a.undone)); if (ev?.proposal && ev.stage === 'resolved') run('combat.apply', { eventId: ev.id, mode: 'calculated' }, { ok: true }); }
       if (e.key === 'j' || e.key === 'k') { const i = pending.findIndex(x => x.id === focus); const n = pending[Math.max(0, Math.min(pending.length - 1, i + (e.key === 'j' ? 1 : -1)))]; if (n) setFocus(n.id); }
     };
@@ -124,7 +126,8 @@ export function GmDashboard({ v, selected, setSelected }) {
     <div class="row">
       <select value=${enc?.id || ''} onChange=${e => setEncId(e.target.value)}>${encs.map(e => html`<option value=${e.id}>${e.name} (${e.status})</option>`)}</select>
       ${enc ? html`<span class="chip ${enc.status === 'active' ? 'good' : ''}">${enc.status}</span><b>Round ${enc.round || '—'}</b>
-        ${enc.status !== 'active' ? html`<button class="primary" onClick=${() => run('enc.start', { id: enc.id })}>Start encounter</button>` : html`<button class="primary" onClick=${() => run('enc.next', { id: enc.id })} ...${tipProps('Next turn (N). Expires shock and temporary modifiers.')}>Next turn ▶</button><button onClick=${() => run('enc.end', { id: enc.id })}>End</button>`}
+        ${enc.status !== 'active' ? html`<button class="primary" onClick=${() => run('enc.start', { id: enc.id })}>Start encounter</button>` : enc.break ? html`<span class="chip info">⏸ break ${enc.break.seconds} s</span><button class="primary" onClick=${() => run('enc.endBreak', { id: enc.id })}>End break ▶</button>` : html`<button class="primary" onClick=${() => run('enc.next', { id: enc.id })} ...${tipProps('Next turn (N). Skips downed combatants, expires shock and temporary modifiers, finishes readying.')}>Next turn ▶</button>
+          <button onClick=${async () => { const n = await askNumber('Break in the action — seconds', { value: 5, min: 1, max: 600, label: 'Seconds (each player gets this many seconds of actions; nobody attacks)' }); if (n) run('enc.break', { id: enc.id, seconds: n }); }} title="Pause the fighting for N seconds of free actions">⏸ Break…</button><button onClick=${() => run('enc.end', { id: enc.id })}>End</button>`}
         <label class="row small" ...${tipProps('Darkness/visibility penalty applied to attacks in this encounter (B394).')}>Darkness <input type="number" min="0" max="10" value=${enc.env?.darkness || 0} onChange=${e => run('enc.update', { id: enc.id, env: { darkness: Number(e.target.value) } })} style=${{ width: '50px' }} /></label>` : html`<span class="muted">No encounter yet.</span><button class="primary" onClick=${async () => { const r = await run('enc.create', { name: 'Quick encounter', participants: Object.values(v.characters).filter(c => c.kind === 'pc' && !c.archived).map(c => c.id) }); if (r) { setEncId(r.result.id); run('enc.start', { id: r.result.id }); } }} title="Creates and starts an encounter with every player character; add NPCs from the Encounter Manager or generate them there">⚡ Quick encounter with all PCs</button>`}
       <span class="right chip ${pending.length ? 'warn' : ''}">${pending.length} awaiting decision</span>
       <span class="kbd">N</span><span class="tiny dim">next turn</span><span class="kbd">A</span><span class="tiny dim">apply</span><span class="kbd">J/K</span><span class="tiny dim">queue</span><span class="kbd">G</span><span class="tiny dim">give item</span>

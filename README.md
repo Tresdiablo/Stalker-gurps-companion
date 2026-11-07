@@ -36,6 +36,14 @@ node src/server/cli.cjs --data ./my-campaigns --port 7788
 # open the printed GM link in Chrome/Edge/Firefox
 ```
 
+## Main menu, GM password and turns
+
+* **Main menu.** Every window opens on the main menu. Players click **Play** on a character card (enter the join code if the GM set one). A character someone is already playing shows 🔒 *In use* and cannot be picked. **⏏ Main menu** in the top bar frees the character and returns to the menu.
+* **GM password.** *Enter as GM* asks for the GM password. The default is **`goyim`**; change it in **Settings → GM password**. The password is stored only as a salted scrypt hash in `host-config.json` in the data folder.
+* **Turn cycle.** When an encounter runs, a bar under the navigation shows the round, whose turn it is and who is next. On a player's turn a **Your turn** pop-up (with a chime) appears on that player's screen: *Take my turn*, *Reload*, *End turn*. On an NPC's turn the GM gets an **NPC turn** pop-up naming the NPC and who is next: *Control*, *Skip turn*. Players end their own turn with **End my turn** or `E`; the GM uses **Next turn** or `N`. Downed combatants are skipped automatically (Settings).
+* **In hands (1-second combat).** Each character has an **In hands** slot. Drag a weapon or item into it to ready it: that takes the turn (GURPS Ready maneuver) and the item is usable from the next turn. Right-click → *Fast-Draw* rolls the skill to ready it instantly. Reloading takes the weapon's reload time from its Shots entry (e.g. "30(3)" = 3 seconds); fitting an attachment takes 3 s. Weapons that are not in hands cannot attack (Settings → *Weapons must be readied*).
+* **Breaks in the action.** Encounters → **⏸ Break in the action** (or **Break…** on the dashboard): give everyone *N* seconds. Nobody attacks; each player spends their seconds on readying (1 s), reloading (reload time), attachments (3 s), loading magazines (2 rounds/s), aiming (1 s, kept afterwards) or using items, then clicks **I'm done**. The GM sees each player's remaining seconds and ends the break: the clock advances *N* rounds, unfinished readying completes and the order restarts from the top.
+
 ## Quick start for the GM
 
 0. **Start screen.** It opens first: continue the last campaign, open another, create a new or test campaign, import a package or migrate an old save. Click the logo in the title bar to return to it.
@@ -69,7 +77,8 @@ node src/server/cli.cjs --data ./my-campaigns --port 7788
 | --- | --- |
 | `1`–`9` | Switch page |
 | `Ctrl+S` | Save |
-| `N` | Next turn |
+| `N` | Next turn (GM) |
+| `E` | End my turn (player) |
 | `A` | Apply the focused or first pending injury |
 | `J` / `K` | Move through the pending queue |
 | `R` | Rotate the selected item, also while dragging |

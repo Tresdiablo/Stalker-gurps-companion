@@ -6,6 +6,7 @@ import { CharacterInventory, StorageView } from './inventory.js';
 import { CharacterSheet } from './character.js';
 import { host } from './net.js';
 import { openSpawn, setSpawnTarget } from './spawn.js';
+import { BreakControls } from './turns.js';
 
 /* ======================================================= manual build editor (NPCs without GCS) */
 function BuildEditor({ v, c }) {
@@ -103,7 +104,9 @@ export function EncounterManager({ v, go }) {
       ${encs.filter(x => showArchived || x.status !== 'archived').map(x => html`<div class="list-item ${e?.id === x.id ? 'sel' : ''}" onClick=${() => setSel(x.id)}><span class="grow">${x.name}<br /><span class="tiny muted">${x.status} · ${x.order.length} combatants${x.round ? ` · round ${x.round}` : ''}</span></span></div>`)}<//>
     ${e ? html`<div class="col">
       <div class="row"><input value=${e.name} onChange=${x => run('enc.update', { id: e.id, name: x.target.value })} style=${{ fontSize: '15px', fontWeight: 600 }} /><span class="chip">${e.status}</span>
-        ${e.status !== 'active' ? html`<button class="primary" onClick=${async () => { await run('enc.start', { id: e.id }); go('gm-dash'); }}>Start & open dashboard</button>` : html`<button class="primary" onClick=${() => go('gm-dash')}>Open dashboard</button><button onClick=${() => run('enc.end', { id: e.id })}>End</button>`}
+        ${e.status !== 'active' ? html`${!e.round ? html`<label class="row small" title="NPCs begin with their first weapon in hands"><input type="checkbox" checked=${e.env.npcsDrawn !== false} onChange=${x => run('enc.update', { id: e.id, env: { npcsDrawn: x.target.checked } })} /> NPCs start with weapons drawn</label>
+          <label class="row small" title="Leave off for an ambush: players must ready weapons first"><input type="checkbox" checked=${!!e.env.pcsDrawn} onChange=${x => run('enc.update', { id: e.id, env: { pcsDrawn: x.target.checked } })} /> PCs start with weapons drawn</label>` : null}
+        <button class="primary" onClick=${async () => { await run('enc.start', { id: e.id }); go('gm-dash'); }}>${e.round ? 'Resume' : 'Start'} & open dashboard</button>` : html`<button class="primary" onClick=${() => go('gm-dash')}>Open dashboard</button><button onClick=${() => run('enc.end', { id: e.id })}>End</button>`}
         ${e.status === 'ended' ? html`<button onClick=${() => run('enc.archive', { id: e.id })}>Archive</button>` : null}${e.status === 'archived' ? html`<button onClick=${() => run('enc.archive', { id: e.id, restore: true })}>Restore</button>` : null}
         <button class="right" onClick=${() => runHost('tts.spawn', { charIds: e.order.filter(id => v.characters[id]?.kind === 'npc') }, { ok: 'Sent tokens to Tabletop Simulator' })} ...${tipProps('Spawn black hex tokens for this encounter’s NPCs in Tabletop Simulator (requires the TTS bridge).')}>Spawn NPC tokens in TTS</button></div>
       <div class="cols c2">
@@ -115,6 +118,7 @@ export function EncounterManager({ v, go }) {
           <div class="row" style=${{ marginTop: '8px' }}><button class="small" disabled=${!pcs.some(p => !e.combatants[p.id])} onClick=${() => run('enc.addCombatant', { id: e.id, charIds: pcs.filter(p => !e.combatants[p.id]).map(p => p.id) })}>+ All player characters</button></div>
           <div class="row" style=${{ marginTop: '4px' }}><select id="encAdd"><option value="">Add character…</option>${[...pcs, ...npcs].filter(c => !e.combatants[c.id]).map(c => html`<option value=${c.id}>${c.name} (${c.kind === 'npc' ? c.faction || 'NPC' : 'PC'})</option>`)}</select><button class="small" onClick=${() => { const id = document.getElementById('encAdd').value; if (id) run('enc.addCombatant', { id: e.id, charId: id }); }}>Add</button></div>
         <//>
+        ${e.status === 'active' ? html`<${Panel} title="⏸ Break in the action"><${BreakControls} v=${v} enc=${e} /><//>` : null}
         <${GenerateNpcs} v=${v} encounterId=${e.id} />
         <${Panel} title="Environment">
           <div class="form"><label class="field">Darkness penalty<input type="number" min="0" max="10" value=${e.env.darkness || 0} onChange=${x => run('enc.update', { id: e.id, env: { darkness: Number(x.target.value) } })} /></label>
@@ -307,6 +311,12 @@ function Log({ v }) {
     <div class="scroll h-lg"><table class="t"><tbody>${list.map(l => html`<tr><td class="dim tiny">${fmtTime(l.at)}</td><td>${l.who}</td><td>${l.summary}${l.override ? html` <span class="chip warn">override</span>` : ''}${l.gmOnly ? html` <span class="chip">GM only</span>` : ''}</td></tr>`)}</tbody></table></div><//>`;
 }
 
+function GmPassword() {
+  const [cur, setCur] = useState(''); const [next, setNext] = useState('');
+  return html`<div class="row"><input type="password" placeholder="Current password" value=${cur} onInput=${e => setCur(e.target.value)} /><input type="password" placeholder="New password" value=${next} onInput=${e => setNext(e.target.value)} />
+    <button disabled=${!cur || next.length < 4} onClick=${async () => { const r = await runHost('gm.password', { current: cur, next }, { ok: 'GM password changed' }); if (r) { setCur(''); setNext(''); } }}>Change GM password</button></div>`;
+}
+
 /* ======================================================= Settings */
 export function Settings({ v }) {
   const r = v.settings.rules;
@@ -318,6 +328,9 @@ export function Settings({ v }) {
     <${Panel} title="Rules — standard GURPS 4e"><div class="col">
       ${tog('ammoEffects', 'Ammunition effects (GURPS High-Tech: hollow-point, AP, buckshot)', 'HP: piercing one size larger, armor divisor (0.5). Buckshot: multiple projectiles.')}
       ${tog('bluntTrauma', 'Blunt trauma for flexible armor (optional rule, B379)')}
+      ${tog('readyRequired', 'One-second combat: weapons must be readied in hands (Ready maneuver, B366)', 'In combat a weapon must be in the “In hands” slot. Readying takes a turn (usable next round) unless a Fast-Draw roll succeeds; reloading takes the weapon’s reload time.')}
+      ${tog('enforceTurns', 'Players act only on their own turn', 'Attacks, aiming and timed actions are refused out of turn. The GM can always act.')}
+      ${tog('skipDown', 'Skip dead or unconscious combatants in the turn order')}
       <div class="tiny dim">Core mechanics always follow the Basic Set: success rolls, criticals, rapid fire, active defenses, hit locations, wounding, shock, major wounds, HP/FP thresholds, encumbrance.</div></div><//>
     <${Panel} title="Campaign rules (S.T.A.L.K.E.R.) — off by default"><div class="col">
       ${tog('armorDT', 'Armor damage threshold (DT)', 'Penetrating damage at or below the armor DT causes no injury.')}
@@ -348,7 +361,8 @@ export function Settings({ v }) {
       ${h.ttsSelection ? html`<div class="notice-bar info">TTS token ${h.ttsSelection.guid || ''} ${h.ttsSelection.name || ''} ${h.ttsSelection.charId ? `→ ${M.charName(v, h.ttsSelection.charId)}` : html`<select onChange=${e => e.target.value && run('tts.link', { charId: e.target.value, guid: h.ttsSelection.guid })}><option value="">Link to…</option>${Object.values(v.characters).map(c => html`<option value=${c.id}>${c.name}</option>`)}</select>`}</div>` : null}
       <div>Linked tokens: ${Object.entries(v.tts?.links || {}).map(([g, id]) => html`<span class="chip">${g} → ${M.charName(v, id)}<button onClick=${() => run('tts.unlink', { guid: g })}>✕</button></span>`)}</div>
       <div class="dim">Paste tts/Global.lua into TTS Global script. TTS keeps maps, miniatures, movement and measuring; the companion never depends on it.</div></div><//>
-    <${Panel} title="Display"><div class="col small"><label class="row">Interface scale <input type="range" min="0.75" max="1.5" step="0.05" value=${zoom} onInput=${e => { setZoom(Number(e.target.value)); document.documentElement.style.setProperty('--zoom', e.target.value); }} /> ${Math.round(zoom * 100)}%</label>
+    <${Panel} title="GM account"><div class="col small"><${GmPassword} /><div class="dim">Everyone opening the app sees the main menu; the GM enters with this password. Players pick a character instead.</div></div><//>
+    <${Panel} title="Display"><div class="col small"><label class="row"><input type="checkbox" checked=${localStorage.getItem('sgc:chime') !== 'false'} onChange=${e => localStorage.setItem('sgc:chime', String(e.target.checked))} /> Sound when it is your turn / an NPC's turn</label><label class="row">Interface scale <input type="range" min="0.75" max="1.5" step="0.05" value=${zoom} onInput=${e => { setZoom(Number(e.target.value)); document.documentElement.style.setProperty('--zoom', e.target.value); }} /> ${Math.round(zoom * 100)}%</label>
       <div>Shortcuts: <span class="kbd">1–9</span> pages · <span class="kbd">Ctrl+S</span> save · <span class="kbd">N</span> next turn · <span class="kbd">A</span> apply · <span class="kbd">J/K</span> queue · <span class="kbd">R</span> rotate (also while dragging) · <span class="kbd">Q</span> quick-load · <span class="kbd">Del</span> delete item (GM)</div></div><//>
   </div>`;
 }

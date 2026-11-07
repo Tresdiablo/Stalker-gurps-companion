@@ -157,7 +157,7 @@ function playerView(s, playerId) {
     for (const id of order) { const cs = e.combatants[id]; combatants[id] = myChars.has(id) ? cs : { charId: id, side: cs.side, posture: cs.posture, maneuver: s.characters[id]?.kind === 'pc' ? cs.maneuver : undefined }; }
     const distances = {};
     for (const [k, v] of Object.entries(e.distances)) { const [a, b] = k.split('|'); if ((myChars.has(a) && characters[b]) || (myChars.has(b) && characters[a])) distances[k] = v; }
-    encounters[e.id] = { id: e.id, name: e.name, status: e.status, round: e.round, turn: e.order[e.turn] && characters[e.order[e.turn]] ? order.indexOf(e.order[e.turn]) : -1, order, combatants, distances, env: { darkness: e.env.darkness }, lootReleased: (e.lootReleased || []).filter(id => characters[id]) };
+    encounters[e.id] = { id: e.id, name: e.name, status: e.status, round: e.round, turnStartedAt: e.turnStartedAt || null, break: e.break ? { seconds: e.break.seconds, fromRound: e.break.fromRound, remaining: Object.fromEntries(Object.entries(e.break.remaining).filter(([id]) => myChars.has(id))), done: e.break.done.filter(id => myChars.has(id)) } : null, turn: e.order[e.turn] && characters[e.order[e.turn]] ? order.indexOf(e.order[e.turn]) : -1, order, combatants, distances, env: { darkness: e.env.darkness }, lootReleased: (e.lootReleased || []).filter(id => characters[id]) };
   }
   const recipeStatus = {};
   if (s.settings.rules.crafting) for (const r of Object.values(s.recipes)) if (r.enabled !== false) for (const id of myChars) recipeStatus[`${r.id}:${id}`] = crafting.recipeStatus(s, id, r);
@@ -168,7 +168,7 @@ function playerView(s, playerId) {
   for (const id of usedAssets) if (s.assets[id]) assets[id] = s.assets[id];
   return {
     role: 'player', playerId, playerName: s.players[playerId]?.name || 'Player', name: s.name, id: s.id, test: !!s.test,
-    settings: { rules: { crafting: s.settings.rules.crafting, playerSelfAdjust: s.settings.rules.playerSelfAdjust, ammoEffects: s.settings.rules.ammoEffects }, economy: { currency: s.settings.economy.currency }, ranks: s.settings.ranks.map(r => ({ name: r.name })), perkPerRank: s.settings.perkPerRank },
+    settings: { rules: { crafting: s.settings.rules.crafting, playerSelfAdjust: s.settings.rules.playerSelfAdjust, ammoEffects: s.settings.rules.ammoEffects, readyRequired: s.settings.rules.readyRequired, enforceTurns: s.settings.rules.enforceTurns }, economy: { currency: s.settings.economy.currency }, ranks: s.settings.ranks.map(r => ({ name: r.name })), perkPerRank: s.settings.perkPerRank },
     players: Object.fromEntries(Object.values(s.players).map(p => [p.id, { id: p.id, name: p.name, color: p.color }])),
     defs, items: withExtras(s, items), characters, stashes, traders: tradersOut, traderPrices, encounters, events,
     recipes: s.settings.rules.crafting ? Object.fromEntries(Object.values(s.recipes).filter(r => r.enabled !== false).map(r => [r.id, r])) : {}, recipeStatus, jobs,

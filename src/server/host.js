@@ -25,6 +25,7 @@ const ROOT = path.join(__dirname, '..', '..');
 function hashCode(code, salt = crypto.randomBytes(16).toString('hex')) { return `${salt}:${crypto.scryptSync(String(code), salt, 32).toString('hex')}`; }
 function checkCode(code, stored) { if (!stored) return false; const [salt, h] = stored.split(':'); const a = Buffer.from(crypto.scryptSync(String(code), salt, 32).toString('hex')); const b = Buffer.from(h); return a.length === b.length && crypto.timingSafeEqual(a, b); }
 function token() { return crypto.randomBytes(24).toString('base64url'); }
+const DEFAULT_GM_PASSWORD = 'goyim';
 function imageKind(buf) {
   if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
@@ -55,7 +56,12 @@ class Host {
     this.sessions = new Map(); // token -> { role, playerId }
     this.oneTime = new Map(); // token -> session (for local windows)
     this.gmToken = token();
-    this.sessions.set(this.gmToken, { role: 'gm' });
+    this.sessions.set(this.gmToken, { role: 'gm', token: this.gmToken });
+    // host-level settings (not part of any campaign): the GM account password
+    this.configFile = path.join(dataDir, 'host-config.json');
+    fs.mkdirSync(dataDir, { recursive: true });
+    try { this.config = JSON.parse(fs.readFileSync(this.configFile, 'utf8')); } catch { this.config = {}; }
+    if (!this.config.gmPasswordHash) { this.config.gmPasswordHash = hashCode(DEFAULT_GM_PASSWORD); this.saveConfig(); }
     this.clients = new Set();
     this.current = null;
     this.broadcastTimer = null;
@@ -120,6 +126,37 @@ class Host {
   }
 
   url(tok = this.gmToken) { return `http://127.0.0.1:${this.port}/?gm=${tok}`; }
+  /** Address of the main menu (GM password or character choice). */
+  menuUrl() { return `http://127.0.0.1:${this.port}/`; }
+  saveConfig() { const tmp = this.configFile + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(this.config, null, 2)); fs.renameSync(tmp, this.configFile); }
+
+  newSession(data) { const t = token(); const sess = { ...data, token: t, joinedAt: Date.now() }; this.sessions.set(t, sess); return { t, sess }; }
+
+  /** Characters currently being played: charId -> display name of the person (connected or just joined). */
+  playing(except = null) {
+    const out = new Map();
+    const live = new Set([...this.clients].filter(c => c.ws.readyState <= 1).map(c => c.session));
+    for (const sess of this.sessions.values()) {
+      if (!sess.charId || sess === except) continue;
+      if (live.has(sess) || Date.now() - (sess.joinedAt || 0) < 20000) out.set(sess.charId, this.current.state.players[sess.playerId]?.name || 'another player');
+    }
+    return out;
+  }
+
+  menuInfo(session) {
+    const s = this.current.state;
+    const busy = this.playing(session);
+    const rank = c => s.settings.ranks?.[c.rank - 1]?.name || '';
+    return {
+      campaign: s.name, test: !!s.test, online: this.online().size, maxPeople: this.maxPeople,
+      session: session ? { role: session.role, charId: session.charId || null } : null,
+      characters: Object.values(s.characters).filter(c => c.kind === 'pc' && !c.archived).map(c => ({
+        id: c.id, name: c.name, faction: c.faction || '', rank: rank(c), hp: c.session.hp, maxHp: c.build?.hp ?? 10,
+        portrait: c.portrait && s.assets[c.portrait] ? '/menu-portrait/' + s.assets[c.portrait].file : null,
+        playedBy: busy.get(c.id) || null, needsCode: !!(c.ownerId && s.players[c.ownerId]?.codeHash),
+      })),
+    };
+  }
 
   /** One-time login link for a local player window. */
   playerLink(playerId) {
@@ -159,13 +196,15 @@ class Host {
       const view = viewFor(this.current.state, c.session);
       view.campaignId = this.current.id;
       view.host = this.hostInfo(c.session);
+      view.playingCharId = c.session.charId || null;
       c.ws.send(JSON.stringify({ type: 'view', view }));
     } catch (e) { this.log.error?.('view error', e); }
   }
 
   hostInfo(session) {
     const on = this.online();
-    const people = [...on.keys()].map(k => (k === 'gm' ? { role: 'gm', name: 'GM' } : { role: 'player', playerId: k.slice(7), name: this.current.state.players[k.slice(7)]?.name || 'Player' }));
+    const st = this.current.state;
+    const people = [...on.keys()].map(k => (k === 'gm' ? { role: 'gm', name: 'GM' } : k.startsWith('char:') ? { role: 'player', charId: k.slice(5), name: st.characters[k.slice(5)]?.name || 'Player' } : { role: 'player', playerId: k.slice(7), name: st.players[k.slice(7)]?.name || 'Player' }));
     const base = { port: this.port, lan: this.bindAddress === '0.0.0.0', notes: this.systemNotes.slice(-20), online: people, maxPeople: this.maxPeople };
     if (session.role !== 'gm') return { ...base, notes: this.systemNotes.filter(n => n.public).slice(-10) };
     return { ...base, gcs: this.gcs.status(), tts: this.tts.status(), ttsSelection: this.ttsSelection, campaigns: this.store.list(), recovery: this.current.recovery, addresses: this.lanAddresses(), legacyAvailable: !!(this.legacyDataFile && fs.existsSync(this.legacyDataFile)) };
@@ -236,7 +275,7 @@ class Host {
     if (p === '/' && (u.searchParams.get('gm') || u.searchParams.get('pt'))) {
       const gm = u.searchParams.get('gm'), pt = u.searchParams.get('pt');
       if (gm && gm === this.gmToken) this.cookie(res, gm);
-      else if (pt && this.oneTime.has(pt)) { const t = token(); this.sessions.set(t, this.oneTime.get(pt)); this.oneTime.delete(pt); this.cookie(res, t); }
+      else if (pt && this.oneTime.has(pt)) { const { t } = this.newSession(this.oneTime.get(pt)); this.oneTime.delete(pt); this.cookie(res, t); }
       res.writeHead(302, { location: '/' }); return res.end();
     }
     if (p === '/' || p === '/index.html') return this.file(res, path.join(ROOT, 'src', 'ui', 'index.html'));
@@ -244,13 +283,44 @@ class Host {
     if (p.startsWith('/seed/')) return this.file(res, path.join(ROOT, 'data', 'seed', 'images', p.slice(6)), path.join(ROOT, 'data', 'seed', 'images'), 86400);
     if (p === '/tts/Global.lua') return this.file(res, path.join(ROOT, 'tts', 'Global.lua'));
     const session = this.sessionFromReq(req);
+    if (p === '/api/menu') return this.json(res, 200, this.menuInfo(session));
+    if (p.startsWith('/menu-portrait/')) { const f = p.slice(15); if (!/^[a-f0-9]{64}\.(png|webp|jpg|jpeg|gif)$/.test(f)) return this.json(res, 400, {}); return this.file(res, path.join(this.store.assetsDir(this.current.id), f), null, 3600); }
+    if (p === '/api/gm-login' && req.method === 'POST') {
+      const body = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}');
+      if (!checkCode(String(body.password || ''), this.config.gmPasswordHash)) { await new Promise(r => setTimeout(r, 700)); return this.json(res, 403, { error: 'Wrong GM password.' }); }
+      const { t } = this.newSession({ role: 'gm' }); this.cookie(res, t);
+      return this.json(res, 200, { ok: true });
+    }
+    if (p === '/api/join' && req.method === 'POST') {
+      const body = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}');
+      const st = this.current.state;
+      const c = st.characters[body.charId];
+      if (!c || c.kind !== 'pc' || c.archived) return this.json(res, 404, { error: 'That character is not available.' });
+      const busy = this.playing(session);
+      if (busy.has(c.id)) return this.json(res, 409, { error: `${c.name} is already being played by ${busy.get(c.id)}.` });
+      if (this.wouldExceed({ role: 'player', charId: c.id })) return this.json(res, 403, { error: `The session is full (${this.maxPeople} people connected). Ask the GM.` });
+      let playerId = c.ownerId;
+      if (playerId && st.players[playerId]?.codeHash && !checkCode(String(body.code || ''), st.players[playerId].codeHash)) return this.json(res, 403, { error: `${c.name} needs its join code.`, needsCode: true });
+      if (!playerId || !st.players[playerId]) { // first time this character is played: create its player record
+        playerId = this.dispatch('player.save', { name: c.name }, { role: 'gm' }).result.id;
+        this.dispatch('char.update', { id: c.id, ownerId: playerId }, { role: 'gm' });
+      }
+      if (session) this.sessions.delete(session.token);
+      const { t } = this.newSession({ role: 'player', playerId, charId: c.id }); this.cookie(res, t);
+      return this.json(res, 200, { ok: true });
+    }
+    if (p === '/api/logout' && req.method === 'POST') {
+      if (session) { this.sessions.delete(session.token); for (const c of this.clients) if (c.session === session) c.ws.close(4002, 'Logged out'); }
+      res.setHeader('set-cookie', 'sgc=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+      return this.json(res, 200, { ok: true });
+    }
     if (p === '/api/whoami') return this.json(res, 200, { online: this.online().size, maxPeople: this.maxPeople, session: session ? { role: session.role, playerId: session.playerId || null } : null, campaign: this.current?.state.name, players: Object.values(this.current?.state.players || {}).filter(x => x.codeHash).map(x => ({ id: x.id, name: x.name })) });
     if (p === '/api/login' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}');
       const pl = this.current.state.players[body.playerId];
       if (!pl || !checkCode(body.code || '', pl.codeHash)) return this.json(res, 403, { error: 'Unknown player or wrong join code.' });
       if (this.wouldExceed({ role: 'player', playerId: pl.id })) return this.json(res, 403, { error: `The session is full (${this.maxPeople} people connected). Ask the GM.` });
-      const t = token(); this.sessions.set(t, { role: 'player', playerId: pl.id }); this.cookie(res, t);
+      const { t } = this.newSession({ role: 'player', playerId: pl.id }); this.cookie(res, t);
       return this.json(res, 200, { ok: true });
     }
     if (p === '/tts/select' && req.method === 'POST') {
@@ -344,7 +414,7 @@ class Host {
 
   /* ------------------------------------------------------------- WebSocket */
   /** People currently connected (the GM once, each player once, however many windows). */
-  personKey(session) { return session.role === 'gm' ? 'gm' : 'player:' + session.playerId; }
+  personKey(session) { return session.role === 'gm' ? 'gm' : session.charId ? 'char:' + session.charId : 'player:' + session.playerId; }
   online() {
     const seen = new Map();
     for (const c of this.clients) if (c.ws.readyState <= 1) { const k = this.personKey(c.session); seen.set(k, (seen.get(k) || 0) + 1); }
@@ -386,6 +456,12 @@ class Host {
       }
       if (m.type === 'host') { const result = await this.hostCommand(c.session, m.command, m.payload || {}); this.scheduleBroadcast(); return reply(true, { result }); }
       if (m.type === 'ping') return reply(true, { result: 'pong' });
+      if (m.type === 'play') { // a player session chooses which of its characters to play
+        const st = this.current.state; const ch = st.characters[m.charId];
+        if (!ch || ch.kind !== 'pc' || (c.session.role !== 'gm' && ch.ownerId !== c.session.playerId)) throw new ActionError('You cannot play that character.');
+        const busy = this.playing(c.session); if (busy.has(ch.id)) throw new ActionError(`${ch.name} is already being played by ${busy.get(ch.id)}.`);
+        c.session.charId = ch.id; c.session.joinedAt = Date.now(); this.scheduleBroadcast(); return reply(true, { result: { charId: ch.id } });
+      }
     } catch (e) {
       if (!e.userFacing) this.log.error?.(e);
       return reply(false, { error: e.userFacing ? e.message : `Internal error: ${e.message}`, code: e.code || 'error' });
@@ -409,6 +485,12 @@ class Host {
         const code = String(p.code || ''); if (code && code.length < 6) throw new ActionError('Join codes need at least 6 characters.');
         this.dispatch('player.save', { id: pl.id, codeHash: code ? hashCode(code) : null }, { role: 'gm' });
         return { set: !!code };
+      }
+      case 'gm.password': {
+        if (!checkCode(String(p.current || ''), this.config.gmPasswordHash)) throw new ActionError('The current password is wrong.');
+        const next = String(p.next || '');
+        if (next.length < 4) throw new ActionError('Use at least 4 characters.');
+        this.config.gmPasswordHash = hashCode(next); this.saveConfig(); return { changed: true };
       }
       case 'player.link': { if (!oc.state.players[p.playerId]) throw new ActionError('Player not found.'); return { url: this.playerLink(p.playerId) }; }
       case 'lan': { this.dispatch('settings.update', { hostLan: !!p.enabled }, { role: 'gm' }); setTimeout(() => this.setLan(!!p.enabled).catch(e => this.notify('host', `LAN change failed: ${e.message}`)), 50); return { lan: !!p.enabled }; }

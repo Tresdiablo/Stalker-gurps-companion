@@ -23,6 +23,7 @@ const crafting = require('./crafting');
 const cat = require('./catalog');
 const gcs = require('./gcs');
 const campaign = require('./campaign');
+const tempo = require('./tempo');
 
 const isGM = a => a && a.role === 'gm';
 const MAX_PROCESSED = 3000;
@@ -241,16 +242,67 @@ H['item.move'] = (s, ctx, p, a) => {
   const dest = targetRoot(s, p.target);
   if (!isGM(a)) assert(canUseRef(s, a, dest, 'put'), 'You cannot put items there.');
   const from = inv.rootOf(s, it);
+  if (p.target.slot === 'ready') return readyItem(s, ctx, a, it, dest.slice(5), { instant: isGM(a) && p.instant });
+  const wasReady = it.loc?.slot === 'ready';
   if (p.target.mount !== undefined) {
     const w = inv.getItem(s, p.target.p.slice(5));
     const mount = weapons.mountsOf(s, w).find(m => m.id === p.target.mount);
     assert(mount, 'Unknown mount.');
-    if (mount.slot === 'magazine') { it.loc = it.loc; weapons.insertMagazine(s, w, it); }
+    const owner = inv.rootOf(s, w);
+    const wd = inv.defOf(s, w);
+    const secs = mount.slot === 'magazine' ? tempo.reloadTime(wd).seconds : 3;
+    const t = owner?.startsWith('char:') ? tempo.spend(s, a, owner.slice(5), secs, mount.slot === 'magazine' ? 'Changing magazines' : 'Fitting an attachment') : { mode: 'free' };
+    if (mount.slot === 'magazine') weapons.insertMagazine(s, w, it);
     else weapons.installAttachment(s, w, it, mount.id);
+    if (t.mode === 'turn') tempo.markBusy(w, t.enc, secs, mount.slot === 'magazine' ? 'reloading' : 'being modified');
   } else inv.place(s, it, p.target);
+  if (wasReady && it.loc?.slot !== 'ready') { delete it.readyAt; delete it.busy; }
   const gmOnly = [from, dest].every(r => r && r.startsWith('char:') && s.characters[r.slice(5)]?.kind === 'npc');
   return { summary: `Moved ${inv.itemName(s, it)}${from !== dest ? ` from ${describeRef(s, from)} to ${describeRef(s, dest)}` : ''}`, gmOnly, quiet: from === dest };
 };
+
+/**
+ * Put an item in hands (the Ready slot). In combat this is a Ready maneuver: the item is usable
+ * from the next round, or at once on a successful Fast-Draw roll (B194). During a break it costs
+ * 1 second of the break. Anything already in hands goes back into the character's storage.
+ */
+function readyItem(s, ctx, a, it, charId, { fastDraw = false, instant = false } = {}) {
+  const c = s.characters[charId];
+  assert(c, 'Only characters can hold items.');
+  if (!isGM(a)) requireOwn(s, a, charId);
+  const t = tempo.spend(s, a, charId, 1, 'Readying an item');
+  const ref = 'char:' + charId;
+  const held = inv.childrenOf(s, ref).find(i => i.loc.slot === 'ready' && i.id !== it.id);
+  if (held) { held.loc = null; inv.storeOnCharacter(s, held, ref); delete held.readyAt; delete held.busy; }
+  inv.place(s, it, { p: ref, slot: 'ready' });
+  let note = '';
+  if (t.mode === 'turn' && !instant) {
+    let quick = false;
+    if (fastDraw) {
+      const skill = tempo.fastDrawSkill(inv.defOf(s, it));
+      assert(skill, 'Fast-Draw does not apply to this item.');
+      const ev = combat.rollSkill(s, ctx, { actorId: charId, skill, visibility: 'public', byUser: a.playerId || 'GM', byGM: isGM(a) });
+      quick = ev.roll.success;
+      note = ` — Fast-Draw ${ev.roll.total} vs ${ev.effective}: ${ev.roll.label}`;
+    }
+    if (quick) tempo.markBusy(it, null, 0); else tempo.markBusy(it, t.enc, 1, 'being readied');
+    const cs = t.enc.combatants[charId];
+    if (cs) { cs.maneuver = 'ready'; if (inv.defOf(s, it).weapon) cs.readyWeaponId = it.id; cs.aim = null; }
+    if (!quick) note += ` — usable from round ${it.readyAt}`;
+  } else tempo.markBusy(it, null, 0);
+  if (t.mode === 'break') note = ` (1 s of the break; ${t.remaining === Infinity ? '' : `${t.remaining} s left`})`;
+  return { summary: `${c.name} readied ${inv.itemName(s, it)}${note}`, gmOnly: c.kind === 'npc' };
+}
+H['item.ready'] = (s, ctx, p, a) => {
+  const it = inv.getItem(s, p.itemId);
+  requireItemAccess(s, a, it, 'take');
+  const root = inv.rootOf(s, it);
+  const charId = p.charId || (root?.startsWith('char:') ? root.slice(5) : null);
+  assert(charId, 'Choose who readies the item.');
+  if (!isGM(a)) assert(canUseRef(s, a, 'char:' + charId, 'put'), 'You can only ready items for your own character.');
+  return readyItem(s, ctx, a, it, charId, { fastDraw: !!p.fastDraw, instant: isGM(a) && !!p.instant });
+};
+
 H['item.transfer'] = (s, ctx, p, a) => {
   const it = inv.getItem(s, p.itemId);
   requireItemAccess(s, a, it, 'take');
@@ -353,7 +405,7 @@ H['item.quickLoad'] = (s, ctx, p, a) => {
   return { summary: `Loaded ${loaded} rounds into ${inv.itemName(s, holder)}` };
 };
 H['item.unload'] = (s, ctx, p, a) => { const holder = inv.getItem(s, p.holderId); requireItemAccess(s, a, holder, 'take'); const t = weapons.unloadRounds(s, ctx, holder, p.to); return { summary: `Unloaded ${Object.values(t).reduce((x, y) => x + y, 0)} rounds from ${inv.itemName(s, holder)}` }; };
-H['item.insertMag'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId), m = inv.getItem(s, p.magId); requireItemAccess(s, a, w, 'put'); requireItemAccess(s, a, m, 'take'); const r = weapons.insertMagazine(s, w, m); return { summary: `Inserted ${inv.itemName(s, m)} into ${inv.itemName(s, w)}${r.chambered ? ' and chambered a round' : ''}` }; };
+H['item.insertMag'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId), m = inv.getItem(s, p.magId); requireItemAccess(s, a, w, 'put'); requireItemAccess(s, a, m, 'take'); const owner = inv.rootOf(s, w); const secs = tempo.reloadTime(inv.defOf(s, w)).seconds; const t = owner?.startsWith('char:') ? tempo.spend(s, a, owner.slice(5), secs, 'Changing magazines') : { mode: 'free' }; const r = weapons.insertMagazine(s, w, m); if (t.mode === 'turn') tempo.markBusy(w, t.enc, secs, 'reloading'); return { summary: `Inserted ${inv.itemName(s, m)} into ${inv.itemName(s, w)}${r.chambered ? ' and chambered a round' : ''}` }; };
 H['item.ejectMag'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId); requireItemAccess(s, a, w, 'take'); if (p.target && !isGM(a)) assert(canUseRef(s, a, targetRoot(s, p.target), 'put'), 'You cannot put items there.'); const m = weapons.ejectMagazine(s, w, p.target); return { summary: `Ejected ${inv.itemName(s, m)} from ${inv.itemName(s, w)}` }; };
 H['item.chamber'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId); requireItemAccess(s, a, w, 'put'); weapons.chamberRound(s, w); return { summary: `Chambered a round in ${inv.itemName(s, w)}` }; };
 /**
@@ -369,42 +421,63 @@ H['weapon.reload'] = (s, ctx, p, a) => {
   const root = inv.rootOf(s, w);
   assert(root?.startsWith('char:'), 'The weapon must be carried to reload it.');
   const charId = root.slice(5);
-  const topUp = holder => {
+  const rt = tempo.reloadTime(d);
+  const cat = require('./catalog');
+  const topUp = (holder, limit = Infinity) => {
     let n = 0;
     for (const am of weapons.ammoChoices(s, charId, holder)) {
-      if (weapons.roundCount(holder.rounds) >= weapons.holderCapacity(s, holder)) break;
-      try { n += weapons.loadRounds(s, holder, am); } catch (e) { if (!e.userFacing) throw e; }
+      if (n >= limit || weapons.roundCount(holder.rounds) >= weapons.holderCapacity(s, holder)) break;
+      try { n += weapons.loadRounds(s, holder, am, limit - n); } catch (e) { if (!e.userFacing) throw e; }
     }
     return n;
   };
+  const timeNote = (t, secs) => t.mode === 'turn' ? ` — ready again in round ${w.readyAt} (${secs} s)` : t.mode === 'break' ? ` (${secs} s of the break${Number.isFinite(t.remaining) ? `, ${t.remaining} s left` : ''})` : '';
   if (d.weapon.integral) {
-    const n = topUp(w);
-    assert(n > 0, weapons.roundCount(w.rounds) >= d.weapon.integral.capacity ? `${d.name} is already full.` : `No compatible ammunition for ${d.name}.`);
-    return { summary: `${charName(s, charId)} reloaded ${d.name} (+${n} rounds)` };
+    const room = d.weapon.integral.capacity - weapons.roundCount(w.rounds);
+    assert(room > 0, `${d.name} is already full.`);
+    const have = weapons.ammoChoices(s, charId, w).reduce((x, y) => x + y.qty, 0);
+    assert(have > 0, `No compatible ammunition for ${d.name}.`);
+    let want = Math.min(room, have);
+    const per = rt.perRound ? rt.seconds : rt.seconds / Math.max(1, d.weapon.integral.capacity);
+    const t = tempo.spend(s, a, charId, left => { if (Number.isFinite(left) && per > 0) want = Math.max(1, Math.min(want, Math.floor(left / per))); return Math.ceil(want * per); }, 'Reloading');
+    const n = topUp(w, want);
+    const secs = Math.ceil(n * per);
+    if (t.mode === 'turn') tempo.markBusy(w, t.enc, secs, 'reloading');
+    return { summary: `${charName(s, charId)} loaded ${n} round${n === 1 ? '' : 's'} into ${d.name}${timeNote(t, secs)}` };
   }
   const cur = weapons.magazineIn(s, w);
   const curRounds = cur ? weapons.roundCount(cur.rounds) : -1;
-  const spares = inv.ownedItems(s, charId).filter(m => m.loc.mount === undefined && s.defs[m.defId]?.magazine && require('./catalog').magazineFitsWeapon(s.defs[m.defId], d)
-    && (m.rounds || []).every(([am]) => require('./catalog').ammoFitsWeapon(s.defs[am], d)))
+  const spares = inv.ownedItems(s, charId).filter(m => m.loc.mount === undefined && s.defs[m.defId]?.magazine && cat.magazineFitsWeapon(s.defs[m.defId], d)
+    && (m.rounds || []).every(([am]) => cat.ammoFitsWeapon(s.defs[am], d)))
     .sort((x, y) => weapons.roundCount(y.rounds) - weapons.roundCount(x.rounds));
   const best = spares[0];
   if (best && weapons.roundCount(best.rounds) > curRounds) {
+    const t = tempo.spend(s, a, charId, rt.seconds, 'Changing magazines');
     if (cur) weapons.ejectMagazine(s, w);
     weapons.insertMagazine(s, w, best);
     if (!w.chamber && weapons.roundCount(best.rounds)) weapons.chamberRound(s, w);
-    return { summary: `${charName(s, charId)} reloaded ${d.name} with ${inv.itemName(s, best)} (${weapons.roundCount(best.rounds) + (w.chamber ? 1 : 0)} rounds ready)` };
+    if (t.mode === 'turn') tempo.markBusy(w, t.enc, rt.seconds, 'reloading');
+    return { summary: `${charName(s, charId)} reloaded ${d.name} with ${inv.itemName(s, best)} (${weapons.roundCount(best.rounds) + (w.chamber ? 1 : 0)} rounds)${timeNote(t, rt.seconds)}` };
   }
   assert(cur, `No compatible magazine for ${d.name}.`);
-  const n = topUp(cur);
+  // no better magazine: top up the inserted one with loose rounds (about 2 rounds per second)
+  const room = weapons.holderCapacity(s, cur) - weapons.roundCount(cur.rounds);
+  const have = weapons.ammoChoices(s, charId, cur).reduce((x, y) => x + y.qty, 0);
+  let want = Math.min(room, have);
+  assert(want > 0 || !w.chamber, `No spare magazine or ammunition for ${d.name}.`);
+  const t = tempo.spend(s, a, charId, left => { if (Number.isFinite(left)) want = Math.min(want, Math.max(0, Math.floor(left * 2))); return Math.max(1, Math.ceil(want / 2)); }, 'Loading the magazine');
+  const n = topUp(cur, want);
   if (!w.chamber && weapons.roundCount(cur.rounds)) weapons.chamberRound(s, w);
-  assert(n > 0 || w.chamber, `No spare magazine or ammunition for ${d.name}.`);
-  return { summary: `${charName(s, charId)} reloaded ${d.name}${n ? ` (+${n} rounds into the magazine)` : ' (chambered a round)'}` };
+  const secs = Math.max(1, Math.ceil(n / 2));
+  if (t.mode === 'turn') tempo.markBusy(w, t.enc, secs, 'reloading');
+  return { summary: `${charName(s, charId)} reloaded ${d.name}${n ? ` (+${n} rounds into the magazine)` : ' (chambered a round)'}${timeNote(t, secs)}` };
 };
-H['item.attach'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId), at = inv.getItem(s, p.attId); requireItemAccess(s, a, w, 'put'); requireItemAccess(s, a, at, 'take'); const m = weapons.installAttachment(s, w, at, p.mountId); return { summary: `Installed ${inv.itemName(s, at)} on ${inv.itemName(s, w)} (${m.label})` }; };
+H['item.attach'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId), at = inv.getItem(s, p.attId); requireItemAccess(s, a, w, 'put'); requireItemAccess(s, a, at, 'take'); const owner = inv.rootOf(s, w); const t = owner?.startsWith('char:') ? tempo.spend(s, a, owner.slice(5), 3, 'Fitting an attachment') : { mode: 'free' }; const m = weapons.installAttachment(s, w, at, p.mountId); if (t.mode === 'turn') tempo.markBusy(w, t.enc, 3, 'being modified'); return { summary: `Installed ${inv.itemName(s, at)} on ${inv.itemName(s, w)} (${m.label})` }; };
 H['item.detach'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId); requireItemAccess(s, a, w, 'take'); if (p.target && !isGM(a)) assert(canUseRef(s, a, targetRoot(s, p.target), 'put'), 'You cannot put items there.'); const at = weapons.removeAttachment(s, w, p.mountId, p.target); return { summary: `Removed ${inv.itemName(s, at)} from ${inv.itemName(s, w)}` }; };
 H['item.use'] = (s, ctx, p, a) => {
   const it = inv.getItem(s, p.itemId); const root = inv.rootOf(s, it); assert(root?.startsWith('char:'), 'Use carried items.');
   requireOwn(s, a, root.slice(5));
+  tempo.spend(s, a, root.slice(5), Math.max(1, Number(s.defs[it.defId]?.consumable?.seconds) || 1), `Using ${inv.itemName(s, it)}`);
   const ev = crafting.useConsumable(s, ctx, { charId: root.slice(5), itemId: it.id, targetId: p.targetId, byUser: a.playerId || 'GM' });
   return { summary: ev.title, eventId: ev.id, result: { eventId: ev.id } };
 };
@@ -520,8 +593,38 @@ H['enc.create'] = (s, ctx, p, a) => { requireGM(a); const e = combat.createEncou
 H['enc.update'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); if (p.name !== undefined) e.name = str(p.name, 120); if (p.env) e.env = { ...e.env, ...p.env }; if (Array.isArray(p.order)) { assert(p.order.length === e.order.length && p.order.every(x => e.combatants[x]), 'Invalid turn order.'); e.order = p.order; } if (p.turn !== undefined) e.turn = Math.max(0, Math.min(e.order.length - 1, Math.floor(p.turn))); return { summary: `Updated encounter ${e.name}`, gmOnly: true }; };
 H['enc.addCombatant'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); for (const cid of [].concat(p.charIds || p.charId)) combat.addCombatant(s, e, cid, p.side); return { summary: `Added ${[].concat(p.charIds || p.charId).map(i => charName(s, i)).join(', ')} to ${e.name}`, gmOnly: true }; };
 H['enc.removeCombatant'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.removeCombatant(s, e, p.charId); return { summary: `Removed ${charName(s, p.charId)} from ${e.name}`, gmOnly: true }; };
-H['enc.start'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.startEncounter(s, e); return { summary: `Encounter ${e.name} started (round ${e.round})` }; };
-H['enc.next'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); const r = combat.nextTurn(s, e); return { summary: `Round ${r.round}: ${charName(s, r.actorId)}'s turn`, quiet: true }; };
+H['enc.start'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.startEncounter(s, e, { npcsDrawn: p.npcsDrawn, pcsDrawn: p.pcsDrawn }, ctx); return { summary: `Encounter ${e.name} started (round ${e.round})` }; };
+H['enc.next'] = (s, ctx, p, a) => {
+  const e = combat.getEncounter(s, p.id);
+  const cur = e.order[e.turn];
+  // the GM advances any turn; a player may end only their own character's turn
+  if (p.expect && p.expect !== cur) return { summary: 'Turn already advanced', quiet: true }; // double click / two people pressing at once
+  if (!isGM(a)) { assert(e.status === 'active' && !e.break, 'Combat is not running.'); requireOwn(s, a, cur); }
+  const r = combat.nextTurn(s, e, ctx);
+  return { summary: `Round ${r.round}: ${charName(s, r.actorId)}'s turn${r.skipped.length ? ` (skipped ${r.skipped.join(', ')} — down)` : ''}` };
+};
+H['enc.break'] = (s, ctx, p, a) => {
+  requireGM(a);
+  const e = combat.getEncounter(s, p.id);
+  const b = tempo.startBreak(s, ctx, e, p.seconds);
+  return { summary: `Break in the action: ${b.seconds} s. Players can ready, reload, aim and patch up — nobody attacks.` };
+};
+H['enc.breakDone'] = (s, ctx, p, a) => {
+  const e = combat.getEncounter(s, p.id);
+  assert(e.break, 'There is no break running.');
+  requireOwn(s, a, p.charId);
+  if (!e.break.done.includes(p.charId)) e.break.done.push(p.charId);
+  const pcs = Object.keys(e.break.remaining);
+  const all = pcs.every(id => e.break.done.includes(id) || !e.break.remaining[id]);
+  return { summary: `${charName(s, p.charId)} is ready to continue${all ? ' — all players are ready' : ''}` };
+};
+H['enc.endBreak'] = (s, ctx, p, a) => {
+  requireGM(a);
+  const e = combat.getEncounter(s, p.id);
+  const b = tempo.endBreak(s, e);
+  e.turnStartedAt = ctx.now();
+  return { summary: `Break over after ${b.seconds} s — round ${e.round}, ${charName(s, e.order[e.turn])}'s turn` };
+};
 H['enc.end'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.endEncounter(s, ctx, e); return { summary: `Encounter ${e.name} ended` }; };
 H['enc.archive'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); e.status = p.restore ? 'ended' : 'archived'; return { summary: `${p.restore ? 'Restored' : 'Archived'} encounter ${e.name}`, gmOnly: true }; };
 H['enc.distance'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.setDistance(e, p.a, p.b, p.yards); return { summary: `Distance ${charName(s, p.a)} ↔ ${charName(s, p.b)}: ${p.yards} yd`, gmOnly: true, quiet: true }; };
@@ -546,10 +649,14 @@ H['npc.reveal'] = (s, ctx, p, a) => { requireGM(a); const c = s.characters[p.id]
 /* ---------- combat */
 function canActFor(s, a, charId) { const c = s.characters[charId]; assert(c, 'Character not found.'); if (c.kind === 'npc') requireGM(a); else requireOwn(s, a, charId); return c; }
 
-H['combat.maneuver'] = (s, ctx, p, a) => { canActFor(s, a, p.charId); const e = combat.getEncounter(s, p.id); combat.setManeuver(s, e, p.charId, p); const m = require('./rules').MANEUVERS[p.maneuver]; const cs = e.combatants[p.charId]; return { summary: `${charName(s, p.charId)}: ${m.label}${p.maneuver === 'aim' ? ` (${cs.aim.turns} turn${cs.aim.turns > 1 ? 's' : ''})` : ''}${p.weaponId && s.items[p.weaponId] ? ` — ${inv.itemName(s, s.items[p.weaponId])}` : ''}`, gmOnly: s.characters[p.charId].kind === 'npc' }; };
+H['combat.maneuver'] = (s, ctx, p, a) => { canActFor(s, a, p.charId); const e = combat.getEncounter(s, p.id); if (e.status === 'active') tempo.spend(s, a, p.charId, p.maneuver === 'aim' ? 1 : 0, p.maneuver === 'aim' ? 'Aiming' : 'That maneuver'); combat.setManeuver(s, e, p.charId, p); const m = require('./rules').MANEUVERS[p.maneuver]; const cs = e.combatants[p.charId]; return { summary: `${charName(s, p.charId)}: ${m.label}${p.maneuver === 'aim' ? ` (${cs.aim.turns} turn${cs.aim.turns > 1 ? 's' : ''})` : ''}${p.weaponId && s.items[p.weaponId] ? ` — ${inv.itemName(s, s.items[p.weaponId])}` : ''}`, gmOnly: s.characters[p.charId].kind === 'npc' }; };
 H['combat.attack'] = (s, ctx, p, a, env) => {
   const c = canActFor(s, a, p.actorId);
-  if (!isGM(a)) { for (const k of ['targetUnaware', 'aimTurns']) if (p[k] !== undefined) throw new PermissionError('Only the GM can set that.'); }
+  if (!isGM(a)) { for (const k of ['targetUnaware', 'aimTurns', 'ignoreReady']) if (p[k] !== undefined) throw new PermissionError('Only the GM can set that.'); }
+  const encNow = tempo.activeEncounterFor(s, c.id);
+  if (encNow?.break) throw new ActionError('Nobody attacks during a break. The GM ends the break to resume combat.', 'time');
+  tempo.spend(s, a, c.id, 0, 'Attacking');
+  if (p.weapon?.itemId && !p.ignoreReady) { const block = tempo.attackBlock(s, inv.getItem(s, p.weapon.itemId), encNow); if (block) throw new ActionError(block, 'not-ready'); }
   const ev = combat.declareAttack(s, ctx, { ...p, byUser: a.playerId || 'GM', visibility: isGM(a) ? (p.visibility || (c.kind === 'npc' ? 'public' : 'public')) : 'public' }, s.settings);
   return { summary: `${ev.title}: ${ev.attack.roll.total} vs ${ev.attack.effective} — ${ev.attack.roll.label}`, eventId: ev.id, gmOnly: ev.visibility === 'gm', result: { eventId: ev.id } };
 };

@@ -30,7 +30,10 @@ function connect() {
   };
   ws.onclose = ev => {
     if (ev.code === 4001) { conn.status = 'full'; conn.full = conn.full || 8; emit(); setTimeout(connect, 10000); return; }
+    if (ev.code === 4002) { location.reload(); return; } // logged out elsewhere
     conn.status = ev.code === 1006 && !conn.view ? 'unauthorized' : 'offline'; emit();
+    // not signed in: stay on the main menu (it reloads the page after signing in)
+    if (conn.status === 'unauthorized') return;
     setTimeout(connect, retryDelay); retryDelay = Math.min(8000, retryDelay * 2);
   };
 }
@@ -58,3 +61,10 @@ export async function login(playerId, code) {
   if (!r.ok) throw new Error((await r.json()).error || 'Login failed');
 }
 export function start() { connect(); }
+/** Choose which of the player's characters this window plays. */
+export function play(charId) { return send({ type: 'play', charId }); }
+export async function logout() { await fetch('/api/logout', { method: 'POST' }); try { sessionStorage.clear(); } catch { /* ignore */ } location.reload(); }
+export async function menu() { const r = await fetch('/api/menu'); return r.json(); }
+async function post(url, body) { const r = await fetch(url, { method: 'POST', body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(j.error || 'Failed'); e.data = j; throw e; } return j; }
+export const gmLogin = password => post('/api/gm-login', { password });
+export const joinAs = (charId, code) => post('/api/join', { charId, code });

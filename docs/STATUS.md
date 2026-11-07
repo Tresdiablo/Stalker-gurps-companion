@@ -41,6 +41,10 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 | Traders | Six trader types, Generate Shop (specialization, tier, rarity, condition, economy settings, stock limits), GM editing and price overrides, open for chosen characters, atomic buy and sell (funds, stock and space all checked), ledger. |
 | Campaign systems | Crafting (green/red availability, tools, skill rolls, repair recipes, result created exactly once), consumables (as proposals, self-apply for own PC), jobs (objectives, assignment, rewards paid exactly once), eight ranks plus perks (requests, approvals, allowance), stashes with access lists, notes, audit log, trash restore. |
 | GM controls | NPC control bar (auto-follows NPC turns, nearest-PC target, attack / reload / aim / maneuver / posture / next turn, secret rolls); searchable spawn picker (`G`) aimed at the selected character; catalog "Spawn into" receiver with + / double-click / right-click; one-click Reload for any firearm (best magazine or loose rounds); bulk distances; quick encounter with all PCs; Ctrl+click quick transfer. |
+| Turn cycle | Turn bar with round / current / next; "Your turn" pop-up and chime for the player whose character acts; "NPC turn" pop-up for the GM naming the NPC and who is next; players end their own turn (button or `E`, stale clicks ignored); downed combatants skipped; options to enforce turn order. |
+| 1-second combat | "In hands" ready slot; readying takes the turn (Fast-Draw roll to make it instant); reload times parsed from Shots; attachments 3 s; busy items shown with the round they become usable; un-readied weapons cannot attack (optional rule). |
+| Breaks | GM allots N seconds; per-player second budgets spent by ready / reload / attach / load / aim / use; no attacks; "I'm done" per player; ending advances the clock N rounds, completes readying, restarts the order. |
+| Main menu & GM password | Character picker with server-side locks (one person per character), join codes, GM password (default `goyim`, salted scrypt hash, changeable in Settings), logout back to the menu. |
 | Start screen | GM: continue / switch / create / test campaign, import, migrate, pre-session checklist. Player: pick a character. Both show who is online. |
 | Catalog | New campaigns start empty; optional built-in starter catalog; "Remove unused items" cleanup. |
 | Multiplayer | Up to 8 people at once (GM + 7 players, enforced on the host at login and connection; one seat always reserved for the GM). GM-hosted WebSocket host with join codes. Live views for every client. Reconnects and retries with idempotent request ids. LAN binding for Radmin VPN. One-time local player windows for single-computer play. |
@@ -92,7 +96,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 
 ## Tests performed
 
-* `npm test`: **39 tests, all passing**. They cover:
+* `npm test`: **46 tests, all passing**. They cover:
   * dice, criticals, contests, damage parsing,
   * SSR range, rapid fire, hits and Dodge vs rapid fire,
   * wounding, injury, armor divisor, limb caps, shock, thresholds, encumbrance, modifiers,
@@ -112,6 +116,8 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
   * the WebSocket host (join codes, server-side permission denials, live updates, idempotent retries),
   * GCS file watching (never writes) and import that preserves damage, with a diff and conflict note,
   * the TTS bridge protocol,
+  * turn order, readying (normal and Fast-Draw), reload times, breaks and their second budgets,
+  * GM password, main-menu join, character locks and logout on the host,
   * legacy migration from a representative 0.9 save fixture.
 * `node tests/e2e/run-e2e.cjs`: **passing**. It drives the real UI in Chromium with a GM window and a player window. It covers:
   * Scenario 1: player assault-rifle attack → GM resolves defense → proposed injury, HP unchanged → Apply calculated → HP decreases → combat log → NPC Manager shows the HP → undo and re-apply,
@@ -121,6 +127,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
   * context-menu unload and quick-load,
   * trader purchase,
   * installing a scope and suppressor with layered rendering.
+* `node tests/e2e/turns-menu.cjs`: **passing**. GM, two players and a third window in Chromium: wrong GM password refused and `goyim` accepted, a character in use locked for others, "Your turn" and "NPC turn" pop-ups, readying a rifle (usable next round), ending turns by button and `E`, a 5-second break with a 3-second reload, ending the break (clock to round 7), and returning to the main menu frees the character.
 * GCS reader run over the 648 master-library `.gcs` files: all parsed, and point totals match.
 * Pinned GCS archives downloaded and checked: 5.58.0 `1bf69c17…` matches the earlier build's pin; 5.58.1 `fb209e11…` is now pinned.
 * Electron app launched under Xvfb on Linux: the GM window loaded with no page errors and the preload bridge was available.
@@ -138,7 +145,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 
 * **Windows install:** double-click `INSTALL_WINDOWS.cmd`. The installer lands in `%LOCALAPPDATA%\STALKER GURPS Companion\installers`.
 * **Development:** `npm install && npm start` (Electron), or `node src/server/cli.cjs` (browser).
-* **Tests:** `npm test`, and `node tests/e2e/run-e2e.cjs` (needs Playwright with Chromium).
+* **Tests:** `npm test`, and `npm run test:e2e` (needs Playwright with Chromium).
 * **Campaign data:**
   * desktop: `%APPDATA%\STALKER GURPS Companion\campaign-data\`,
   * CLI: `./.campaign-data`.

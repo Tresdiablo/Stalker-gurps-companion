@@ -9,14 +9,26 @@ const QUICK_MODS = [-4, -2, -1, +1, +2, +4];
 export function weaponOptions(v, c) {
   const out = [];
   const carried = M.owned(v, c.id).filter(i => M.def(v, i)?.weapon && i.loc.mount === undefined && !(i.loc.g === 'ground'));
-  const order = { primary: 0, secondary: 1, holster: 2, melee: 3 };
+  const order = { ready: -1, primary: 0, secondary: 1, holster: 2, melee: 3 };
   carried.sort((a, b) => (order[a.loc.slot] ?? 9) - (order[b.loc.slot] ?? 9));
   for (const w of carried) {
     const d = M.def(v, w);
-    out.push({ key: 'item:' + w.id, ref: { itemId: w.id }, label: `${M.itemName(v, w)}${w.loc.slot ? '' : ' (stowed)'}${d.weapon.kind === 'ranged' ? ` · ${w.feed?.rounds ?? 0} rds` : ''}`, kind: d.weapon.kind, rof: d.weapon.rof, rounds: w.feed?.rounds ?? 0, item: w, def: d });
+    out.push({ key: 'item:' + w.id, ref: { itemId: w.id }, label: `${w.loc.slot === 'ready' ? '✋ ' : ''}${M.itemName(v, w)}${w.loc.slot === 'ready' ? (w.readyAt ? ` (${w.busy || 'readying'} → R${w.readyAt})` : ' (in hands)') : w.loc.slot ? ' (slung)' : ' (stowed)'}${d.weapon.kind === 'ranged' ? ` · ${w.feed?.rounds ?? 0} rds` : ''}`, kind: d.weapon.kind, rof: d.weapon.rof, rounds: w.feed?.rounds ?? 0, item: w, def: d });
   }
   (c.build?.weapons || []).forEach((w, i) => out.push({ key: 'gcs:' + (w.id || i), ref: { gcsWeaponId: w.id || String(i) }, label: `${w.owner}${w.usage ? ` (${w.usage})` : ''} · ${w.damage} [sheet]`, kind: w.kind, rof: w.rof || '1', rounds: Infinity, gcs: w }));
   return out;
+}
+
+/** Why this attack cannot be made right now (mirrors the host's rules; the host still checks). */
+function blockReason(v, enc, actorId, w) {
+  if (!enc || enc.status !== 'active') return null;
+  if (enc.break) return 'Break in the action — nobody attacks. Use the time to ready, reload or aim.';
+  const gm = v.role === 'gm';
+  if (!gm && v.settings?.rules?.enforceTurns !== false && enc.order[enc.turn] !== actorId) return `Wait for your turn — it is ${M.charName(v, enc.order[enc.turn])}'s turn.`;
+  if (!w?.item) return null;
+  if (w.item.readyAt && enc.round < w.item.readyAt) return `${M.itemName(v, w.item)} is ${w.item.busy || 'being readied'} — usable from round ${w.item.readyAt}.`;
+  if (v.settings?.rules?.readyRequired !== false && w.item.loc.slot !== 'ready') return `${M.itemName(v, w.item)} is not in your hands. Readying takes this turn (usable next round), or roll Fast-Draw.`;
+  return null;
 }
 
 /** Attack declaration form. */
@@ -77,7 +89,8 @@ export function AttackForm({ v, actorId, compact }) {
     </div>
     ${gm ? html`<div class="row small"><label class="row"><input type="checkbox" checked=${unaware} onChange=${e => setUnaware(e.target.checked)} /> Target unaware (no defense)</label>
       <label class="row">Visibility <select value=${visibility} onChange=${e => setVis(e.target.value)}><option value="public">Public</option><option value="gm">GM only</option></select></label></div>` : null}
-    <div class="row"><button class="primary" disabled=${busy || !w || (w.kind === 'ranged' && !w.rounds)} onClick=${roll}>🎯 Roll attack${w?.kind === 'ranged' && !w.rounds ? ' (empty)' : ''}</button>
+    ${(() => { const why = blockReason(v, enc, actorId, w); return why ? html`<div class="notice-bar small">${why}${w?.item && w.item.loc.slot !== 'ready' && !enc?.break ? html` <button class="small good" onClick=${() => run('item.ready', { itemId: w.item.id, charId: actorId }, { ok: true })}>✋ Ready it</button> <button class="small" onClick=${() => run('item.ready', { itemId: w.item.id, charId: actorId, fastDraw: true }, { ok: true })}>⚡ Fast-Draw</button>` : null}</div>` : null; })()}
+    <div class="row"><button class="primary" disabled=${busy || !w || (w.kind === 'ranged' && !w.rounds) || !!blockReason(v, enc, actorId, w)} onClick=${roll}>🎯 Roll attack${w?.kind === 'ranged' && !w.rounds ? ' (empty)' : ''}</button>
       ${w?.item && w.kind === 'ranged' ? html`<button class=${!w.rounds ? 'good' : ''} onClick=${() => run('weapon.reload', { weaponId: w.item.id }, { ok: true })} title="Insert the fullest magazine you carry, or load loose rounds">↻ Reload</button>` : null}
       ${w?.item && w.kind === 'ranged' && !w.def.weapon.integral ? html`<span class="muted small">${w.item.feed?.chamber ? 'Round chambered' : 'Chamber empty'}</span>` : null}</div>
   </div>`;
@@ -148,7 +161,7 @@ export function PlayerCombat({ v, charId }) {
   return html`<div class="cols" style=${{ gridTemplateColumns: '300px 1fr 400px' }}>
     <div class="col">
       <${Panel} title=${c.name}><${Vitals} v=${v} c=${c} /><//>
-      ${enc ? html`<${Panel} title=${`${enc.name} · Round ${enc.round}`}>${enc.order.map((id, i) => html`<div class="row small"><span class=${i === enc.turn ? 'turn-marker' : 'dim'}>${i === enc.turn ? '▶' : '·'}</span><span class=${id === charId ? 'accent' : ''}>${v.characters[id]?.name}</span><span class="muted right">${v.characters[id]?.status || (v.characters[id]?.kind === 'pc' ? `${v.characters[id].session.hp}/${v.characters[id].build?.hp} HP` : '')}</span></div>`)}<//>` : html`<${Panel} title="Encounter"><div class="muted">No active encounter. You can still roll skills.</div><//>`}
+      ${enc ? html`<${Panel} title=${`${enc.name} · Round ${enc.round}`} actions=${enc.order[enc.turn] === charId && !enc.break ? html`<button class="small primary" onClick=${() => run('enc.next', { id: enc.id, expect: charId })} title="End your turn (E)">End my turn ▶</button>` : null}>${enc.order.map((id, i) => html`<div class="row small"><span class=${i === enc.turn ? 'turn-marker' : 'dim'}>${i === enc.turn ? '▶' : '·'}</span><span class=${id === charId ? 'accent' : ''}>${v.characters[id]?.name}</span><span class="muted right">${v.characters[id]?.status || (v.characters[id]?.kind === 'pc' ? `${v.characters[id].session.hp}/${v.characters[id].build?.hp} HP` : '')}</span></div>`)}<//>` : html`<${Panel} title="Encounter"><div class="muted">No active encounter. You can still roll skills.</div><//>`}
     </div>
     <div class="col">
       ${incoming.length ? html`<${Panel} title="Needs your attention" cls="attention"><${EventFeed} v=${v} filter=${e => incoming.includes(e)} expanded=${true} /><//>` : null}
