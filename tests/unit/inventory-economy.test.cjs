@@ -249,3 +249,25 @@ test('new campaigns start with an empty catalog; starter catalog can be loaded a
   assert.ok(Object.values(e.state.npcTemplates).every(t => t.loadout.every(l => l.options.length)));
   assert.throws(() => e.dispatch('def.deleteUnused', {}, { role: 'player', playerId: 'x' }), /Only the GM/);
 });
+
+test('one-click reload swaps in the fullest magazine, tops up internal feeds, and refuses when nothing fits', () => {
+  const { engine, gm, player, pc } = setup();
+  const s = () => engine.state;
+  const ak = engine.dispatch('item.spawn', { defId: 'builtin-akm-76239', target: { p: 'char:' + pc, slot: 'primary' } }, gm).result.ids[0];
+  assert.throws(() => engine.dispatch('weapon.reload', { weaponId: ak }, player), /No compatible magazine/);
+  const m1 = engine.dispatch('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc }, gm).result.ids[0];
+  engine.dispatch('item.spawn', { defId: 't1-ammo-7-62-39mm-fmj', qty: 12, to: 'char:' + pc }, gm);
+  engine.dispatch('item.insertMag', { weaponId: ak, magId: m1 }, player);
+  engine.dispatch('weapon.reload', { weaponId: ak }, player); // no spare: tops up and chambers
+  assert.equal(weapons.roundsAvailable(s(), s().items[ak]), 12);
+  const m2 = engine.dispatch('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc, loadFull: true }, gm).result.ids[0];
+  engine.dispatch('weapon.reload', { weaponId: ak }, player);
+  assert.equal(s().items[m2].loc.mount, 'magwell', 'fullest magazine inserted');
+  assert.equal(inv.rootOf(s(), s().items[m1]), 'char:' + pc, 'old magazine kept');
+  assert.equal(weapons.roundsAvailable(s(), s().items[ak]), 31, '30 + 1 chambered from the previous magazine');
+  const sks = engine.dispatch('item.spawn', { defId: 't1-weapon-sks', target: { p: 'char:' + pc, slot: 'secondary' } }, gm).result.ids[0];
+  engine.dispatch('item.spawn', { defId: 't1-ammo-7-62-39mm-fmj', qty: 20, to: 'char:' + pc }, gm);
+  engine.dispatch('weapon.reload', { weaponId: sks }, player);
+  assert.equal(weapons.roundsAvailable(s(), s().items[sks]), 10);
+  assert.throws(() => engine.dispatch('weapon.reload', { weaponId: sks }, player), /already full/);
+});

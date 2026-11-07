@@ -214,6 +214,52 @@ const gm = { role: 'gm' };
   console.log('Attachment overlay OK: optic without an overlay image is drawn on the weapon (imgs', imgsBefore, '->', await P.locator(`.tile[data-item="${gun}"] img`).count(), ')');
   await shot(P, '6-optic-on-weapon-tile');
 
+  // ---------------- GM: run an NPC's turn from the NPC control bar (attack, reload)
+  await G.click('.nav button:has-text("GM Dashboard")');
+  await G.waitForSelector('.npc-bar');
+  const npcName = s().characters[bandit2].name;
+  await G.selectOption('.npc-bar select >> nth=0', bandit2);
+  await G.selectOption('.npc-bar select >> nth=1', 'item:' + bAk);
+  const evBefore = Object.keys(s().events).length;
+  await G.click('.npc-bar button:has-text("Attack")');
+  await waitFor(() => Object.keys(s().events).length > evBefore);
+  const npcEv = Object.values(s().events).sort((a, b) => b.seq - a.seq)[0];
+  assert.equal(npcEv.actorId, bandit2, 'attack made by the chosen NPC');
+  assert.equal(npcEv.targetId, pc, 'nearest PC preselected as target');
+  if (npcEv.stage === 'awaiting-defense') d('combat.defend', { eventId: npcEv.id, type: 'none' });
+  const roundsBefore = require('../../src/core/weapons').roundsAvailable(s(), s().items[bAk]);
+  d('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + bandit2, loadFull: true });
+  await G.click('.npc-bar button:has-text("Reload")');
+  await waitFor(() => require('../../src/core/weapons').roundsAvailable(s(), s().items[bAk]) > roundsBefore);
+  await shot(G, '7-npc-control-bar');
+  console.log(`NPC control OK: ${npcName} attacked ${s().characters[pc].name} and reloaded from the bar`);
+
+  // ---------------- GM: spawn from the catalog into a chosen receiver, and with the G picker
+  await G.click('.nav button:has-text("Item Catalog")');
+  await G.selectOption('.spawn-to select', 'char:' + bandit);
+  await G.fill('.panel .search', 'Bandage');
+  const bandBefore = inv.countOwned(s(), bandit, 'med-bandage', { includeGround: true });
+  await G.hover('.cat-row:has-text("Bandage")');
+  await G.click('.cat-row:has-text("Bandage") .spawn-btn');
+  await waitFor(() => inv.countOwned(s(), bandit, 'med-bandage', { includeGround: true }) === bandBefore + 1);
+  await G.dblclick('.cat-row:has-text("Bandage")');
+  await waitFor(() => inv.countOwned(s(), bandit, 'med-bandage', { includeGround: true }) === bandBefore + 2);
+  await G.click('.nav button:has-text("GM Dashboard")');
+  await G.click(`.combatant:has-text("${s().characters[pc].name}")`);
+  await G.keyboard.press('g');
+  await G.waitForSelector('.modal:has-text("Spawn item")');
+  await G.keyboard.type('Bread');
+  await G.keyboard.press('Enter');
+  await waitFor(() => inv.countOwned(s(), pc, 'eq-bread', { includeGround: true }) >= 1);
+  console.log('Spawn OK: catalog + button, double-click, and the G picker spawned into the targeted character');
+
+  // ---------------- Player: Ctrl+click quick transfer between ground and character
+  const can = d('item.spawn', { defId: 'eq-canned', target: { p: 'char:' + pc, g: 'ground', x: 9, y: 7, r: 0 } }).result.ids[0];
+  await P.click('.nav button:has-text("Inventory")');
+  await P.click(`.tile[data-item="${can}"]`, { modifiers: ['Control'] });
+  await waitFor(() => s().items[can] && s().items[can].loc.g !== 'ground');
+  console.log('Ctrl+click quick transfer OK');
+
   assert.deepEqual(errors, [], 'no browser errors');
   console.log('E2E PASSED');
   await browser.close();

@@ -130,6 +130,7 @@ function tileTip(v, it) {
   if (d.armor) lines.push(`DR ${d.armor.dr} · ${d.armor.locations.join(', ')}${d.armor.flexible ? ' · flexible' : ''}${it.dp !== undefined && d.armor.dpMax ? ` · DP ${it.dp}/${d.armor.dpMax}` : ''}`);
   if (d.container) lines.push(`Storage: ${d.container.grids.map(g => `${g.w}×${g.h}`).join(' + ')}`);
   if (d.description) lines.push('', d.description.slice(0, 300));
+  lines.push('', 'Drag to move · R rotate · Ctrl+click quick move · Right-click for actions');
   return lines.join('\n');
 }
 
@@ -185,9 +186,20 @@ export function Slot({ v, charId, slot, label, ctx, cls = '' }) {
 const selection = { id: null };
 let drag = null;
 
+/** Ctrl+click: move an item between the character and the storage shown on the right. */
+function quickTransfer(v, it, ctx) {
+  const root = M.rootOf(v, it);
+  if (root?.startsWith('trader:')) return buyItem(v, it, ctx);
+  if (!ctx.charId) return;
+  const onChar = root === 'char:' + ctx.charId && it.loc?.g !== 'ground';
+  if (onChar) return run('item.drop', { itemId: it.id });
+  return run('item.transfer', { itemId: it.id, to: 'char:' + ctx.charId });
+}
+
 function startDrag(e, v, it, ctx) {
   if (e.button !== 0) return;
   e.stopPropagation();
+  if (e.ctrlKey || e.metaKey) { e.preventDefault(); quickTransfer(v, it, ctx); return; }
   const el = e.currentTarget;
   const rect = el.getBoundingClientRect();
   const cell = cellPx();
@@ -331,6 +343,7 @@ export function itemMenu(e, v, it, ctx) {
     items.push({ label: `Buy (${money(v.traderPrices[it.id])})`, onClick: () => buyItem(v, it, ctx) }, { label: 'Inspect', onClick: () => inspect(v, it) });
     return openMenu(e, items);
   }
+  if (d.weapon?.kind === 'ranged' && (mine || gm)) items.push({ label: '↻ Reload', hint: 'best magazine / loose rounds', onClick: () => run('weapon.reload', { weaponId: it.id }, { ok: true }) });
   items.push({ label: 'Inspect', hint: 'dbl-click', onClick: () => inspect(v, it) });
   if (d.container) items.push({ label: 'Open', onClick: () => ctx.openContainer?.(it.id) });
   if (d.consumable && mine) items.push({ label: 'Use', onClick: () => run('item.use', { itemId: it.id }, { ok: true }) });

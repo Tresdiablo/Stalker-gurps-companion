@@ -1,5 +1,6 @@
 // Item Catalog / Editor (GM): definitions, artwork library, attachment anchor editor.
-import { html, useState, useEffect, useRef, run, Panel, Tabs, toast, askNumber, confirmBox, tipProps, useLocal } from './ui.js';
+import { html, useState, useEffect, useRef, run, Panel, Tabs, toast, askNumber, confirmBox, tipProps, useLocal, openMenu } from './ui.js';
+import { TargetSelect, spawnItem, spawnTargets, getSpawnTarget, setSpawnTarget, targetLabel } from './spawn.js';
 import * as M from './model.js';
 
 const CATS = { weapon: 'Weapons', armor: 'Armor & Clothing', equipment: 'Equipment', medical: 'Medical', material: 'Crafting Materials', artifact: 'Artifacts', ammo: 'Ammunition', magazine: 'Magazines', container: 'Containers', attachment: 'Attachments', misc: 'Miscellaneous' };
@@ -201,25 +202,39 @@ export function Catalog({ v }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useLocal('cat-filter', '');
   const [sel, setSel] = useLocal('cat-sel', null);
-  const [spawnTo, setSpawnTo] = useState('');
+  const [spawnTo, setSpawnToState] = useLocal('cat-spawn-to', getSpawnTarget() || '');
+  const setSpawnTo = r => { setSpawnToState(r); setSpawnTarget(r); };
+  const to = spawnTo && targetLabel(v, spawnTo) !== '—' ? spawnTo : '';
+  const spawnMenu = (e, x) => openMenu(e, [
+    { header: x.name },
+    { label: `Spawn 1 → ${to ? targetLabel(v, to) : '(choose a receiver)'}`, disabled: !to, onClick: () => spawnItem(v, x.id, to, { loaded: true }) },
+    ...(x.stack > 1 ? [{ label: `Spawn a full stack (${x.stack})`, disabled: !to, onClick: () => spawnItem(v, x.id, to, { qty: x.stack }) }] : []),
+    { label: 'Spawn amount…', disabled: !to, onClick: async () => { const n = await askNumber(`Spawn ${x.name}`, { value: 1, max: 10000 }); if (n) spawnItem(v, x.id, to, { qty: n, loaded: true }); } },
+    { label: 'Spawn to…', sub: spawnTargets(v).slice(0, 40).map(t => ({ label: `${t.label} · ${t.group}`, onClick: () => { setSpawnTo(t.ref); spawnItem(v, x.id, t.ref, { loaded: true }); } })) },
+    '-',
+    { label: 'Edit', onClick: () => setSel(x.id) },
+    { label: 'Duplicate', onClick: () => run('def.duplicate', { id: x.id }, { ok: true }) },
+    { label: 'Delete', onClick: async () => { if (await confirmBox('Delete item', `Delete ${x.name} from the catalog?`)) run('def.delete', { id: x.id }); } },
+  ]);
   const defs = Object.values(v.defs).filter(d => (!cat || d.category === cat) && `${d.name} ${d.sub} ${d.id}`.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.category.localeCompare(b.category) || (a.sub || '').localeCompare(b.sub || '') || a.name.localeCompare(b.name));
   const d = v.defs[sel] || defs[0];
   const groups = {};
   for (const x of defs) (groups[`${CATS[x.category]} › ${x.sub || 'Other'}`] ||= []).push(x);
-  const targets = [...Object.values(v.characters).map(c => ['char:' + c.id, c.name]), ...Object.values(v.stashes).map(s => ['stash:' + s.id, s.name]), ...Object.values(v.traders).map(t => ['trader:' + t.id, 'Trader: ' + t.name])];
   const exportCatalog = () => { const blob = new Blob([JSON.stringify(Object.values(v.defs), null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'catalog.json'; a.click(); };
   const importCatalog = () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json'; inp.onchange = async () => { try { const data = JSON.parse(await inp.files[0].text()); const r = await run('def.import', { defs: Array.isArray(data) ? data : data.defs || Object.values(data) }, { ok: true }); for (const e of r?.result?.errors || []) toast(e, 'error'); } catch (e) { toast(e.message, 'error'); } }; inp.click(); };
   return html`<div class="cols" style=${{ gridTemplateColumns: '330px 1fr' }}>
     <div class="col"><${Panel} title=${`Catalog (${Object.keys(v.defs).length})`} flat=${true} actions=${html`<button class="small primary" onClick=${async () => { const r = await run('def.save', { def: { name: 'New item', category: cat || 'misc', w: 1, h: 1 } }); if (r) setSel(r.result.id); }}>+ New</button>`}>
-      <div class="col" style=${{ padding: '6px' }}><input class="search" placeholder="Search…" value=${q} onInput=${e => setQ(e.target.value)} />
+      <div class="col" style=${{ padding: '6px' }}>
+        <div class="spawn-to"><span class="small">Spawn into</span><${TargetSelect} v=${v} value=${to} onChange=${setSpawnTo} cls="grow" /></div>
+        <div class="tiny dim">Click <b>+</b> or double-click an item to spawn it there · right-click for amounts or another receiver.</div>
+        <input class="search" placeholder="Search…" value=${q} onInput=${e => setQ(e.target.value)} />
         <select value=${cat} onChange=${e => setCat(e.target.value)}><option value="">All categories</option>${Object.entries(CATS).map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select>
         <div class="row"><button class="small" onClick=${importCatalog}>Import JSON…</button><button class="small" onClick=${exportCatalog}>Export JSON</button></div>
         <div class="row"><button class="small" onClick=${async () => { if (await confirmBox('Load starter catalog', 'Add the built-in items (Tier 1 weapons, magazines, ammo, armor, medical, artifacts, attachments, containers), crafting recipes and NPC template gear? Items you already have are kept.', 'Load')) run('def.loadStarter', {}, { ok: true }); }}>Load starter catalog</button>
           <button class="small danger" disabled=${!Object.keys(v.defs).length} onClick=${async () => { if (await confirmBox('Remove unused items', 'Delete every catalog item that no character, NPC, stash or trader currently owns? Items in use are kept. Recipes and NPC gear that refer to removed items are cleaned up.', 'Remove')) run('def.deleteUnused', {}, { ok: true }); }}>Remove unused items</button></div></div>
-      <div class="scroll h-lg">${Object.entries(groups).map(([g, items]) => html`<div class="grid-label" style=${{ padding: '0 8px' }}>${g}</div>${items.map(x => html`<div class="list-item ${d?.id === x.id ? 'sel' : ''}" onClick=${() => setSel(x.id)}>
-        ${M.imageUrl(v, x.image) ? html`<img src=${M.imageUrl(v, x.image)} style=${{ width: '46px', height: '24px', objectFit: 'contain' }} />` : html`<span style=${{ width: '46px' }} class="dim tiny">${x.w}×${x.h}</span>`}<span class="grow small">${x.name}</span><span class="tiny dim">${x.value}₽</span></div>`)}`)}</div><//>
-      ${d ? html`<${Panel} title="Quick spawn"><div class="row"><select value=${spawnTo} onChange=${e => setSpawnTo(e.target.value)}><option value="">Spawn into…</option>${targets.map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select>
-        <button class="small" disabled=${!spawnTo} onClick=${async () => { const n = d.stack > 1 ? await askNumber('Quantity', { value: d.stack, max: 10000 }) : 1; if (n) run('item.spawn', { defId: d.id, qty: n, to: spawnTo, loadFull: !!(d.magazine || d.weapon?.integral) }, { ok: true }); }}>Spawn</button></div><//>` : null}
+      <div class="scroll h-lg">${Object.entries(groups).map(([g, items]) => html`<div class="grid-label" style=${{ padding: '0 8px' }}>${g}</div>${items.map(x => html`<div class="list-item cat-row ${d?.id === x.id ? 'sel' : ''}" onClick=${() => setSel(x.id)} onDblClick=${() => spawnItem(v, x.id, to, { loaded: true })} onContextMenu=${e => spawnMenu(e, x)} title="Double-click: spawn into the receiver · Right-click: more">
+        ${M.imageUrl(v, x.image) ? html`<img src=${M.imageUrl(v, x.image)} style=${{ width: '46px', height: '24px', objectFit: 'contain' }} />` : html`<span style=${{ width: '46px' }} class="dim tiny">${x.w}×${x.h}</span>`}<span class="grow small">${x.name}</span><span class="tiny dim">${x.value}₽</span><button class="small spawn-btn" disabled=${!to} title=${to ? `Spawn 1 into ${targetLabel(v, to)}` : 'Choose a receiver above'} onClick=${e => { e.stopPropagation(); spawnItem(v, x.id, to, { loaded: true }); }}>+</button></div>`)}`)}</div><//>
+
     </div>
     ${d ? html`<${DefEditor} key=${d.id} v=${v} def=${d} onSaved=${setSel} />` : html`<div class="panel"><div class="body empty"><h2>The catalog is empty</h2><p>Create items with <b>+ New</b>, import a catalog JSON, or load the built-in starter catalog.</p>
       <div class="row" style=${{ justifyContent: 'center' }}><button class="primary" onClick=${async () => { const r = await run('def.save', { def: { name: 'New item', category: cat || 'misc', w: 1, h: 1 } }); if (r) setSel(r.result.id); }}>+ New item</button><button onClick=${importCatalog}>Import JSON…</button><button onClick=${() => run('def.loadStarter', {}, { ok: true })}>Load starter catalog</button></div></div></div>`}

@@ -5,6 +5,7 @@ import * as M from './model.js';
 import { CharacterInventory, StorageView } from './inventory.js';
 import { CharacterSheet } from './character.js';
 import { host } from './net.js';
+import { openSpawn, setSpawnTarget } from './spawn.js';
 
 /* ======================================================= manual build editor (NPCs without GCS) */
 function BuildEditor({ v, c }) {
@@ -81,12 +82,10 @@ function GenerateNpcs({ v, encounterId }) {
   </div><div class="row" style=${{ marginTop: '8px' }}><button class="primary" onClick=${go}>Generate${encounterId ? ' into encounter' : ''}</button><span class="tiny dim">Weapons get compatible magazines and ammunition only.</span></div><//>`;
 }
 
+/** Opens the catalog picker preset to this receiver (also remembered for the G key). */
 function SpawnBox({ v, to }) {
-  const [q, setQ] = useState('');
-  const [qty, setQty] = useState(1);
-  const list = q.length > 1 ? Object.values(v.defs).filter(d => d.name.toLowerCase().includes(q.toLowerCase())).slice(0, 12) : [];
-  return html`<div class="panel"><div class="body col"><h3>Spawn items (GM)</h3><div class="row"><input class="grow" placeholder="Search catalog…" value=${q} onInput=${e => setQ(e.target.value)} /><input type="number" min="1" value=${qty} onInput=${e => setQty(Number(e.target.value) || 1)} /></div>
-    ${list.map(d => html`<div class="row small"><span class="grow">${d.name} <span class="dim">${d.sub}</span></span>${d.magazine || d.weapon?.integral ? html`<button class="small" onClick=${() => run('item.spawn', { defId: d.id, qty, to, loadFull: true })}>+ loaded</button>` : null}<button class="small" onClick=${() => run('item.spawn', { defId: d.id, qty, to }, { ok: true })}>+ Add</button></div>`)}</div></div>`;
+  setSpawnTarget(to);
+  return html`<button class="small primary" onClick=${() => openSpawn(v, to)} title="Spawn items from the catalog here (G)">+ Spawn item…</button>`;
 }
 
 /* ======================================================= Encounter Manager */
@@ -113,7 +112,8 @@ export function EncounterManager({ v, go }) {
             <input class="small" value=${e.combatants[id]?.side || ''} onChange=${x => run('enc.combatant', { id: e.id, charId: id, side: x.target.value })} style=${{ width: '90px' }} title="Side" />
             <button class="small ghost" disabled=${i === 0} onClick=${() => { const o = e.order.slice(); [o[i - 1], o[i]] = [o[i], o[i - 1]]; run('enc.update', { id: e.id, order: o }); }}>↑</button>
             <button class="small ghost" onClick=${() => run('enc.removeCombatant', { id: e.id, charId: id })}>✕</button></div>` : null; })}
-          <div class="row" style=${{ marginTop: '8px' }}><select id="encAdd"><option value="">Add character…</option>${[...pcs, ...npcs].filter(c => !e.combatants[c.id]).map(c => html`<option value=${c.id}>${c.name} (${c.kind === 'npc' ? c.faction || 'NPC' : 'PC'})</option>`)}</select><button class="small" onClick=${() => { const id = document.getElementById('encAdd').value; if (id) run('enc.addCombatant', { id: e.id, charId: id }); }}>Add</button></div>
+          <div class="row" style=${{ marginTop: '8px' }}><button class="small" disabled=${!pcs.some(p => !e.combatants[p.id])} onClick=${() => run('enc.addCombatant', { id: e.id, charIds: pcs.filter(p => !e.combatants[p.id]).map(p => p.id) })}>+ All player characters</button></div>
+          <div class="row" style=${{ marginTop: '4px' }}><select id="encAdd"><option value="">Add character…</option>${[...pcs, ...npcs].filter(c => !e.combatants[c.id]).map(c => html`<option value=${c.id}>${c.name} (${c.kind === 'npc' ? c.faction || 'NPC' : 'PC'})</option>`)}</select><button class="small" onClick=${() => { const id = document.getElementById('encAdd').value; if (id) run('enc.addCombatant', { id: e.id, charId: id }); }}>Add</button></div>
         <//>
         <${GenerateNpcs} v=${v} encounterId=${e.id} />
         <${Panel} title="Environment">

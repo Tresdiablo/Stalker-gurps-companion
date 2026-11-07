@@ -11,6 +11,7 @@ import { GmDashboard } from './gm-dashboard.js';
 import { NpcManager, EncounterManager, CharacterManager, TraderManager, CampaignManager, Settings } from './gm-manage.js';
 import { Catalog } from './gm-catalog.js';
 import { StartScreen } from './start.js';
+import { openSpawn, setSpawnTarget, getSpawnTarget } from './spawn.js';
 
 const PLAYER_PAGES = [['dash', 'Dashboard'], ['character', 'Character / GCS'], ['inventory', 'Inventory'], ['equipment', 'Equipment'], ['combat', 'Combat'], ['trader', 'Trader'], ['crafting', 'Crafting / Jobs']];
 const GM_PAGES = [['gm-dash', 'GM Dashboard'], ['encounters', 'Encounters'], ['npcs', 'NPC Manager'], ['characters', 'Characters'], ['catalog', 'Item Catalog'], ['traders', 'Traders'], ['campaign', 'Campaign'], ['settings', 'Settings']];
@@ -43,7 +44,8 @@ function App() {
   const gm = v?.role === 'gm';
   const [page, setPage] = useLocal('page', gm ? 'gm-dash' : 'dash');
   const [charSel, setCharSel] = useLocal('char-sel', null);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelectedState] = useState(null);
+  const setSelected = id => { setSelectedState(id); window.__sgcSelected = id; if (id) setSpawnTarget('char:' + id); };
   const [weaponId, setWeaponId] = useState(null);
   const [mode, setMode] = useLocal('mode', 'gm'); // GM can switch to the player-style pages for any PC
   const [started, setStarted] = useState(() => { try { return sessionStorage.getItem('sgc:started') === '1'; } catch { return false; } });
@@ -55,6 +57,7 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (conn.view?.role === 'gm') runHost('save', {}, { ok: 'Saved' }); }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') { const s = document.querySelector('.search'); if (s) { e.preventDefault(); s.focus(); } }
       if (e.target.matches('input,textarea,select') || e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.key === 'g' || e.key === 'G') && conn.view?.role === 'gm' && !document.querySelector('.modal')) { e.preventDefault(); const sel = window.__sgcSelected; openSpawn(conn.view, sel && conn.view.characters[sel] ? 'char:' + sel : getSpawnTarget()); return; }
       const n = Number(e.key);
       if (n >= 1 && n <= 9) { const pages = conn.view?.role === 'gm' && localStorage.getItem('sgc:mode') !== '"player"' ? GM_PAGES : PLAYER_PAGES; if (pages[n - 1]) setPage(pages[n - 1][0]); }
     };

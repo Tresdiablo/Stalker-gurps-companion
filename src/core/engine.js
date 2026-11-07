@@ -356,6 +356,50 @@ H['item.unload'] = (s, ctx, p, a) => { const holder = inv.getItem(s, p.holderId)
 H['item.insertMag'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId), m = inv.getItem(s, p.magId); requireItemAccess(s, a, w, 'put'); requireItemAccess(s, a, m, 'take'); const r = weapons.insertMagazine(s, w, m); return { summary: `Inserted ${inv.itemName(s, m)} into ${inv.itemName(s, w)}${r.chambered ? ' and chambered a round' : ''}` }; };
 H['item.ejectMag'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId); requireItemAccess(s, a, w, 'take'); if (p.target && !isGM(a)) assert(canUseRef(s, a, targetRoot(s, p.target), 'put'), 'You cannot put items there.'); const m = weapons.ejectMagazine(s, w, p.target); return { summary: `Ejected ${inv.itemName(s, m)} from ${inv.itemName(s, w)}` }; };
 H['item.chamber'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId); requireItemAccess(s, a, w, 'put'); weapons.chamberRound(s, w); return { summary: `Chambered a round in ${inv.itemName(s, w)}` }; };
+/**
+ * One-click reload: internal magazines are topped up from carried ammunition; detachable feeds
+ * swap in the fullest compatible magazine the character carries (the old one goes back into
+ * storage), or top up the inserted magazine when there is no spare.
+ */
+H['weapon.reload'] = (s, ctx, p, a) => {
+  const w = inv.getItem(s, p.weaponId);
+  requireItemAccess(s, a, w, 'put');
+  const d = inv.defOf(s, w);
+  assert(d.weapon?.kind === 'ranged', 'Only firearms can be reloaded.');
+  const root = inv.rootOf(s, w);
+  assert(root?.startsWith('char:'), 'The weapon must be carried to reload it.');
+  const charId = root.slice(5);
+  const topUp = holder => {
+    let n = 0;
+    for (const am of weapons.ammoChoices(s, charId, holder)) {
+      if (weapons.roundCount(holder.rounds) >= weapons.holderCapacity(s, holder)) break;
+      try { n += weapons.loadRounds(s, holder, am); } catch (e) { if (!e.userFacing) throw e; }
+    }
+    return n;
+  };
+  if (d.weapon.integral) {
+    const n = topUp(w);
+    assert(n > 0, weapons.roundCount(w.rounds) >= d.weapon.integral.capacity ? `${d.name} is already full.` : `No compatible ammunition for ${d.name}.`);
+    return { summary: `${charName(s, charId)} reloaded ${d.name} (+${n} rounds)` };
+  }
+  const cur = weapons.magazineIn(s, w);
+  const curRounds = cur ? weapons.roundCount(cur.rounds) : -1;
+  const spares = inv.ownedItems(s, charId).filter(m => m.loc.mount === undefined && s.defs[m.defId]?.magazine && require('./catalog').magazineFitsWeapon(s.defs[m.defId], d)
+    && (m.rounds || []).every(([am]) => require('./catalog').ammoFitsWeapon(s.defs[am], d)))
+    .sort((x, y) => weapons.roundCount(y.rounds) - weapons.roundCount(x.rounds));
+  const best = spares[0];
+  if (best && weapons.roundCount(best.rounds) > curRounds) {
+    if (cur) weapons.ejectMagazine(s, w);
+    weapons.insertMagazine(s, w, best);
+    if (!w.chamber && weapons.roundCount(best.rounds)) weapons.chamberRound(s, w);
+    return { summary: `${charName(s, charId)} reloaded ${d.name} with ${inv.itemName(s, best)} (${weapons.roundCount(best.rounds) + (w.chamber ? 1 : 0)} rounds ready)` };
+  }
+  assert(cur, `No compatible magazine for ${d.name}.`);
+  const n = topUp(cur);
+  if (!w.chamber && weapons.roundCount(cur.rounds)) weapons.chamberRound(s, w);
+  assert(n > 0 || w.chamber, `No spare magazine or ammunition for ${d.name}.`);
+  return { summary: `${charName(s, charId)} reloaded ${d.name}${n ? ` (+${n} rounds into the magazine)` : ' (chambered a round)'}` };
+};
 H['item.attach'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId), at = inv.getItem(s, p.attId); requireItemAccess(s, a, w, 'put'); requireItemAccess(s, a, at, 'take'); const m = weapons.installAttachment(s, w, at, p.mountId); return { summary: `Installed ${inv.itemName(s, at)} on ${inv.itemName(s, w)} (${m.label})` }; };
 H['item.detach'] = (s, ctx, p, a) => { const w = inv.getItem(s, p.weaponId); requireItemAccess(s, a, w, 'take'); if (p.target && !isGM(a)) assert(canUseRef(s, a, targetRoot(s, p.target), 'put'), 'You cannot put items there.'); const at = weapons.removeAttachment(s, w, p.mountId, p.target); return { summary: `Removed ${inv.itemName(s, at)} from ${inv.itemName(s, w)}` }; };
 H['item.use'] = (s, ctx, p, a) => {

@@ -208,3 +208,10 @@ button.big { padding: 10px 16px; font-size: 14px; letter-spacing: 1px; }
 .start-foot { width: min(1180px, 100%); }
 .start-online { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
 .start-online .chip { gap: 6px; }
+
+/* GM NPC control bar */
+.npc-bar { background: linear-gradient(90deg, #2a1c1c, #1a1517 60%, var(--panel)); border: 1px solid #6b3f3f; border-left: 3px solid var(--bad); border-radius: 6px; padding: 8px 12px; }
+.npc-bar.their-turn { box-shadow: 0 0 0 1px #e66b6b55, 0 0 16px #e66b6b22; }
+.npc-title { letter-spacing: 1.5px; text-transform: uppercase; font-size: 12px; color: #ffb1a8; }
+.spawn-to { display: flex; gap: 6px; align-items: center; padding: 6px; border: 1px solid #4f7a5f; border-radius: 4px; background: #13231a; }
+.cat-row .spawn-btn { opacity: 0; padding: 0 7px; } .cat-row:hover .spawn-btn, .cat-row.sel .spawn-btn { opacity: 1; }

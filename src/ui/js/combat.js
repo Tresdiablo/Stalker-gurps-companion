@@ -6,7 +6,7 @@ import { EventFeed } from './events.js';
 
 const QUICK_MODS = [-4, -2, -1, +1, +2, +4];
 
-function weaponOptions(v, c) {
+export function weaponOptions(v, c) {
   const out = [];
   const carried = M.owned(v, c.id).filter(i => M.def(v, i)?.weapon && i.loc.mount === undefined && !(i.loc.g === 'ground'));
   const order = { primary: 0, secondary: 1, holster: 2, melee: 3 };
@@ -37,7 +37,14 @@ export function AttackForm({ v, actorId, compact }) {
   const [busy, setBusy] = useState(false);
   if (!c) return html`<div class="empty">Choose a character.</div>`;
   const w = weapons.find(x => x.key === wKey) || weapons.find(x => cs?.readyWeaponId && x.key === 'item:' + cs.readyWeaponId) || weapons[0];
-  const tId = targetId || cs?.targetId || '';
+  // default target: the last one chosen, else the nearest living opponent by GM-set distance
+  const autoTarget = () => {
+    if (!enc) return '';
+    const me = c.kind;
+    const foes = enc.order.filter(id => id !== actorId && v.characters[id] && (me === 'npc' ? v.characters[id].kind === 'pc' : v.characters[id].kind === 'npc') && !(v.characters[id].session?.conditions || []).includes('Dead'));
+    return foes.sort((a, b) => (M.distanceBetween(enc, actorId, a) ?? 1e9) - (M.distanceBetween(enc, actorId, b) ?? 1e9))[0] || '';
+  };
+  const tId = targetId || cs?.targetId || autoTarget();
   const targets = enc ? enc.order.filter(id => id !== actorId && v.characters[id]) : Object.values(v.characters).filter(x => x.id !== actorId && (gm ? true : x.kind === 'npc')).map(x => x.id);
   const rofN = parseInt(w?.rof, 10) || 1;
   const maxShots = Math.max(1, Math.min(rofN, w?.rounds === Infinity ? rofN : w?.rounds || 1));
@@ -71,6 +78,7 @@ export function AttackForm({ v, actorId, compact }) {
     ${gm ? html`<div class="row small"><label class="row"><input type="checkbox" checked=${unaware} onChange=${e => setUnaware(e.target.checked)} /> Target unaware (no defense)</label>
       <label class="row">Visibility <select value=${visibility} onChange=${e => setVis(e.target.value)}><option value="public">Public</option><option value="gm">GM only</option></select></label></div>` : null}
     <div class="row"><button class="primary" disabled=${busy || !w || (w.kind === 'ranged' && !w.rounds)} onClick=${roll}>🎯 Roll attack${w?.kind === 'ranged' && !w.rounds ? ' (empty)' : ''}</button>
+      ${w?.item && w.kind === 'ranged' ? html`<button class=${!w.rounds ? 'good' : ''} onClick=${() => run('weapon.reload', { weaponId: w.item.id }, { ok: true })} title="Insert the fullest magazine you carry, or load loose rounds">↻ Reload</button>` : null}
       ${w?.item && w.kind === 'ranged' && !w.def.weapon.integral ? html`<span class="muted small">${w.item.feed?.chamber ? 'Round chambered' : 'Chamber empty'}</span>` : null}</div>
   </div>`;
 }

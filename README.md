@@ -54,6 +54,8 @@ node src/server/cli.cjs --data ./my-campaigns --port 7788
    * Resolve the NPC's defense.
    * Review the calculated injury.
    * Click **Apply calculated**, or enter a custom amount, ignore it, notify the player, or undo.
+   * **NPC control bar** (top of the dashboard): runs an NPC's turn. When it becomes an NPC's turn it is selected automatically, with the nearest player character preselected as the target. Pick the weapon and target, then use **Attack**, **Reload**, **Aim**, another maneuver or posture, and **Next turn ▶**. Tick *Secret roll* to hide the roll from players.
+   * **Give items anywhere:** press **`G`** (or **+ Give item**) to open a searchable catalog picker aimed at the selected character. In the Item Catalog, set **Spawn into** once, then click **+** or double-click any item; right-click for amounts or another receiver.
 6. **Single computer:** use *Open player window* (Campaign → Players, or the Windows menu).
 7. **Other computers (LAN / Radmin VPN):**
    * Enable hosting under **Settings → Multiplayer hosting**.
@@ -72,6 +74,8 @@ node src/server/cli.cjs --data ./my-campaigns --port 7788
 | `J` / `K` | Move through the pending queue |
 | `R` | Rotate the selected item, also while dragging |
 | `Q` | Quick-load a magazine |
+| `G` | GM: spawn an item into the selected character (searchable picker) |
+| Ctrl+click | Quick-move an item between the character and the open storage |
 | `Del` | Delete the selected item (GM) |
 | Right-click | Opens the context actions everywhere |
 
