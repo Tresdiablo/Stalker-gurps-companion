@@ -83,9 +83,9 @@ function startEncounter(s, e, opts = {}, ctx = null) {
       const c = s.characters[id]; if (!c) continue;
       if (!(c.kind === 'npc' ? npcsDrawn : pcsDrawn)) continue;
       const ref = 'char:' + id;
-      if (inv.childrenOf(s, ref).some(i => i.loc.slot === 'ready')) continue;
+      if (inv.childrenOf(s, ref).some(i => i.loc.slot === 'hands')) continue;
       const w = ['primary', 'holster', 'secondary', 'melee'].map(sl => inv.childrenOf(s, ref).find(i => i.loc.slot === sl)).find(i => i && s.defs[i.defId]?.weapon);
-      if (w) { w.loc = { p: ref, slot: 'ready' }; delete w.readyAt; delete w.busy; }
+      if (w) { w.loc = { p: ref, slot: 'hands' }; delete w.readyAt; delete w.busy; }
     }
     tempo.skipDown(s, e);
   }

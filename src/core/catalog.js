@@ -17,7 +17,7 @@ const CATEGORIES = {
   material: { label: 'Crafting Materials', subs: ['Parts', 'Chemicals', 'Mutant Parts', 'Electronics', 'Repair'] },
   artifact: { label: 'Artifacts', subs: ['Gravitational', 'Chemical', 'Fire', 'Electrical', 'Miscellaneous'] },
   ammo: { label: 'Ammunition', subs: ['Pistol', 'Rifle', 'Shotgun', 'Grenades'] },
-  magazine: { label: 'Magazines', subs: ['Pistol', 'SMG', 'Rifle', 'Shotgun', 'Integral'] },
+  magazine: { label: 'Magazines', subs: ['Pistol', 'SMG', 'Rifle', 'Shotgun', 'Stripper Clips', 'Integral'] },
   container: { label: 'Containers', subs: ['Pouches', 'Cases', 'Storage'] },
   attachment: { label: 'Attachments', subs: ['Optics', 'Muzzle Devices', 'Foregrips', 'Stocks', 'Tactical Devices', 'Underbarrel'] },
   misc: { label: 'Miscellaneous', subs: ['Valuables', 'Documents', 'Keys', 'Junk'] },
@@ -26,9 +26,10 @@ const CATEGORIES = {
 const RARITY = { common: 100, uncommon: 45, rare: 15, 'very rare': 5, unique: 1 };
 
 const EQUIP_SLOTS = {
-  ready: { label: 'In hands (ready)', categories: null },
-  primary: { label: 'Primary Weapon', categories: ['weapon'] },
-  secondary: { label: 'Secondary Weapon', categories: ['weapon'] },
+  hands: { label: 'Hands', categories: null }, // what the character holds and fires
+  ready: { label: 'Ready (use next turn)', categories: null }, // staging: used automatically next turn
+  primary: { label: 'Sling', categories: ['weapon'] }, // carried long guns (ids kept for old saves)
+  secondary: { label: 'Back', categories: ['weapon'] },
   holster: { label: 'Holster', categories: ['weapon'], subs: ['Pistols', 'Revolvers'] },
   melee: { label: 'Melee / Sheath', categories: ['weapon'], subs: ['Melee Weapons'] },
   helmet: { label: 'Helmet', categories: ['armor'], subs: ['Helmets'] },
@@ -98,6 +99,7 @@ function normalizeDef(input) {
     d.magazine.capacity = Math.max(1, Math.floor(num(d.magazine.capacity, 1)));
     d.magazine.calibers = arr(d.magazine.calibers).map(String);
     d.magazine.family = String(d.magazine.family || '');
+    d.magazine.clip = !!d.magazine.clip || d.sub === 'Stripper Clips'; // loads an internal magazine, then is put away
   }
   if (d.ammo) d.ammo.caliber = String(d.ammo.caliber || '');
   if (d.attachment) {
@@ -120,7 +122,7 @@ function normalizeDef(input) {
 
 /** Default equipment slots for a definition. */
 function slotsFor(def) {
-  if (def.slots && def.slots.length) return def.slots.includes('ready') ? def.slots : [...def.slots, 'ready'];
+  if (def.slots && def.slots.length) return [...new Set([...def.slots, 'hands', 'ready'])];
   const out = [];
   for (const [slot, rule] of Object.entries(EQUIP_SLOTS)) {
     if (!rule.categories) { out.push(slot); continue; } // anything can be held in hands
@@ -147,7 +149,13 @@ function ammoFitsWeapon(ammoDef, weaponDef) {
 
 /** Magazine family is accepted by the weapon. */
 function magazineFitsWeapon(magDef, weaponDef) {
-  return !!(magDef?.magazine && weaponDef?.weapon && !weaponDef.weapon.integral && weaponDef.weapon.magFamilies.includes(magDef.magazine.family));
+  return !!(magDef?.magazine && !magDef.magazine.clip && weaponDef?.weapon && !weaponDef.weapon.integral && weaponDef.weapon.magFamilies.includes(magDef.magazine.family));
+}
+
+/** Stripper clip loads this weapon's internal magazine (clip family listed in the weapon's families). */
+function clipFitsWeapon(clipDef, weaponDef) {
+  return !!(clipDef?.magazine?.clip && weaponDef?.weapon?.integral && weaponDef.weapon.magFamilies.includes(clipDef.magazine.family)
+    && clipDef.magazine.calibers.some(c => weaponDef.weapon.calibers.includes(c)));
 }
 
 /** Attachment fits a specific weapon mount. */
@@ -164,4 +172,4 @@ function compatibleAmmo(defs, holderDef) {
   return Object.values(defs).filter(a => a.ammo && (holderDef.magazine ? ammoFitsMagazine(a, holderDef) : ammoFitsWeapon(a, holderDef)));
 }
 
-module.exports = { CATEGORIES, RARITY, EQUIP_SLOTS, ATTACHMENT_SLOTS, ARMOR_LOCATIONS, caliberKey, normalizeDef, slotsFor, ammoFitsMagazine, ammoFitsWeapon, magazineFitsWeapon, attachmentFitsMount, compatibleAmmo, num, arr };
+module.exports = { CATEGORIES, RARITY, EQUIP_SLOTS, ATTACHMENT_SLOTS, ARMOR_LOCATIONS, caliberKey, normalizeDef, slotsFor, ammoFitsMagazine, ammoFitsWeapon, magazineFitsWeapon, clipFitsWeapon, attachmentFitsMount, compatibleAmmo, num, arr };

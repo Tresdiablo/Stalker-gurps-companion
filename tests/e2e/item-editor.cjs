@@ -1,0 +1,42 @@
+'use strict';
+// Browser test: Item Editor id drop-downs, subcategory → weapon skill, category → behaviour.
+const fs=require('fs'),os=require('os'),path=require('path');
+const R=path.join(__dirname,'..','..');
+const assert=require('node:assert/strict');
+const {chromium}=require('playwright');const {Host}=require(R+'/src/server/host');
+const OUT=path.join(R,'test-results','editor'); fs.mkdirSync(OUT,{recursive:true});
+(async()=>{
+ const host=new Host({dataDir:fs.mkdtempSync(path.join(os.tmpdir(),'ed-')),port:0,log:{error:console.error}});await host.start();
+ const d=(a,p)=>host.dispatch(a,p,{role:'gm'});
+ d('def.loadStarter',{});
+ const b=await chromium.launch();const g=await b.newPage({viewport:{width:1500,height:1100}});
+ g.on('pageerror',e=>console.log('ERR',e.message));
+ await g.goto(host.menuUrl()); await g.fill('input[type=password]','goyim'); await g.click('button:has-text("Enter as GM")');
+ await g.click('button:has-text("Enter campaign")'); await g.click('.nav button:has-text("Item Catalog")');
+ await g.click('button:has-text("+ New")'); await g.waitForTimeout(400);
+ await g.selectOption('label.field:has-text("Category") select','weapon');
+ assert.equal(await g.isChecked('input[data-behaviour=weapon]'), true, 'choosing Weapons switches on the Weapon behaviour');
+ await g.fill('.id-field:has-text("Subcategory") input','Shotguns'); await g.waitForTimeout(200);
+ const skill=await g.inputValue('.id-field:has-text("Skill") input');
+ assert.equal(skill,'Guns (Shotgun)','subcategory sets the skill');
+ // calibers: type 7.62 and pick
+ await g.click('.id-field:has-text("Calibers") input'); await g.keyboard.type('7.62x39'); await g.waitForTimeout(150);
+ await g.screenshot({path:OUT+'/ed-calibers.png'});
+ await g.click('.id-field:has-text("Calibers") .id-opt >> nth=0');
+ await g.click('.id-field:has-text("Magazine families") input'); await g.waitForTimeout(200);
+ await g.screenshot({path:OUT+'/ed-families.png'});
+ const groups=await g.$$eval('.id-field:has-text("Magazine families") .id-group',x=>x.map(e=>e.textContent));
+ const first=await g.$$eval('.id-field:has-text("Magazine families") .id-opt',x=>x.slice(0,4).map(e=>e.textContent));
+ assert.deepEqual(groups,['Takes 7.62x39','Other families']); assert.match(first[0],/^ak762/);
+ await g.click('.id-field:has-text("Magazine families") .id-opt >> nth=0');
+ await g.click('.id-field:has-text("Skill") input'); await g.waitForTimeout(150);
+ await g.screenshot({path:OUT+'/ed-skill.png'});
+ await g.keyboard.press('Escape');
+ await g.fill('.id-field:has-text("Subcategory") input','Pistols'); await g.waitForTimeout(150);
+ assert.equal(await g.inputValue('.id-field:has-text("Skill") input'),'Guns (Pistol)');
+ await g.click('button:has-text("Save definition")'); await g.waitForTimeout(400);
+ const def=Object.values(host.current.state.defs).find(x=>x.name==='New item');
+ assert.deepEqual({skill:def.weapon.skill,cal:def.weapon.calibers,fam:def.weapon.magFamilies},{skill:'Guns (Pistol)',cal:['7.62x39'],fam:['ak762']});
+ console.log('ITEM EDITOR E2E PASSED');
+ await b.close();await host.stop();process.exit(0);
+})().catch(e => { console.error('E2E FAILED:', e); process.exit(1); });

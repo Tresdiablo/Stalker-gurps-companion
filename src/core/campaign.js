@@ -6,7 +6,7 @@ const seed = require('./seed');
 const { RANKS } = require('./characters');
 const { RANK_NPC } = require('./npcs');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const DEFAULT_RULES = {
   // GURPS High-Tech ammunition effects (hollow-point, AP, buckshot). Standard GURPS 4e supplement rules.
@@ -115,6 +115,13 @@ function migrate(s) {
   s.tts = s.tts || { links: {} };
   s.meta = s.meta || { processed: {}, seq: 0 };
   s.meta.processed = s.meta.processed || {};
+  if (s.schema < 2) {
+    // schema 2: the old "In hands" slot (id 'ready') becomes 'hands'; 'ready' is now the staging slot
+    let n = 0;
+    for (const it of Object.values(s.items)) if (it.loc?.slot === 'ready') { it.loc.slot = 'hands'; n++; }
+    s.schema = 2;
+    report.push(`Moved ${n} held item(s) into the new Hands slot.`);
+  }
   return report;
 }
 

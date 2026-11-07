@@ -29,8 +29,8 @@ test('turn cycle: order by speed, players act only on their turn, end their own 
   const e = () => engine.state.encounters[enc];
   engine.dispatch('enc.start', { id: enc }, gm);
   assert.equal(e().order[0], pc, 'fastest first');
-  assert.equal(inv.equipped(engine.state, n1, 'ready')?.id, t.pm, 'NPCs start with weapons drawn');
-  assert.equal(inv.equipped(engine.state, pc, 'ready'), null, 'PCs keep weapons slung by default');
+  assert.equal(inv.equipped(engine.state, n1, 'hands')?.id, t.pm, 'NPCs start with weapons drawn');
+  assert.equal(inv.equipped(engine.state, pc, 'hands'), null, 'PCs keep weapons slung by default');
   assert.throws(() => engine.dispatch('enc.next', { id: enc }, { role: 'player', playerId: 'nobody' }), /own character/);
   engine.dispatch('enc.next', { id: enc, expect: pc }, player); // player ends own turn
   engine.dispatch('enc.next', { id: enc, expect: pc }, player); // duplicate click is ignored
@@ -48,10 +48,10 @@ test('ready slot: readying takes a turn (or Fast-Draw), reloading takes the weap
   const { engine, gm, player, pc, n1, enc } = t;
   const e = () => engine.state.encounters[enc];
   engine.dispatch('enc.start', { id: enc }, gm);
-  assert.throws(() => engine.dispatch('combat.attack', { actorId: pc, targetId: n1, weapon: { itemId: t.ak } }, player), /Ready AKM first/);
-  engine.dispatch('item.move', { itemId: t.ak, target: { p: 'char:' + pc, slot: 'ready' } }, player);
+  assert.throws(() => engine.dispatch('combat.attack', { actorId: pc, targetId: n1, weapon: { itemId: t.ak } }, player), /Draw AKM first/);
+  engine.dispatch('item.move', { itemId: t.ak, target: { p: 'char:' + pc, slot: 'hands' } }, player);
   assert.equal(engine.state.items[t.ak].readyAt, 2);
-  assert.throws(() => engine.dispatch('combat.attack', { actorId: pc, targetId: n1, weapon: { itemId: t.ak } }, player), /usable from round 2/);
+  assert.throws(() => engine.dispatch('combat.attack', { actorId: pc, targetId: n1, weapon: { itemId: t.ak } }, player), /already spent \(drawing AKM\)/);
   engine.dispatch('enc.next', { id: enc }, gm); engine.dispatch('enc.next', { id: enc }, gm); engine.dispatch('enc.next', { id: enc }, gm);
   assert.equal(e().round, 2);
   assert.equal(engine.state.items[t.ak].readyAt, undefined, 'ready now');
@@ -64,9 +64,9 @@ test('ready slot: readying takes a turn (or Fast-Draw), reloading takes the weap
   engine.dispatch('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc }, gm);
   t.queue.push(2, 2, 2); // Fast-Draw (Pistol) defaults from DX... success on 6
   engine.dispatch('item.ready', { itemId: pistol, fastDraw: true }, player);
-  assert.equal(engine.state.items[pistol].loc.slot, 'ready');
+  assert.equal(engine.state.items[pistol].loc.slot, 'hands');
   assert.equal(engine.state.items[pistol].readyAt, undefined, 'Fast-Draw success: ready immediately');
-  assert.equal(engine.state.items[t.ak].loc.slot !== 'ready', true, 'the rifle went back to storage');
+  assert.equal(engine.state.items[t.ak].loc.slot !== 'hands', true, 'the rifle went back to storage');
 });
 
 test('break: N seconds to spend, no attacks, clock advances; GM password and permissions', () => {
@@ -78,7 +78,7 @@ test('break: N seconds to spend, no attacks, clock advances; GM password and per
   engine.dispatch('enc.break', { id: enc, seconds: 5 }, gm);
   assert.deepEqual(e().break.remaining, { [pc]: 5 });
   assert.throws(() => engine.dispatch('combat.attack', { actorId: n1, targetId: pc, weapon: { itemId: t.pm } }, gm), /during a break/);
-  engine.dispatch('item.move', { itemId: t.ak, target: { p: 'char:' + pc, slot: 'ready' } }, player); // 1 s, ready at once
+  engine.dispatch('item.move', { itemId: t.ak, target: { p: 'char:' + pc, slot: 'hands' } }, player); // 1 s, ready at once
   assert.equal(e().break.remaining[pc], 4);
   assert.equal(engine.state.items[t.ak].readyAt, undefined);
   t.queue.push(6, 6, 6);

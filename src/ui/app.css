@@ -240,5 +240,20 @@ button.big { padding: 10px 16px; font-size: 14px; letter-spacing: 1px; }
 .turn-pop-name { font-size: 30px; font-weight: 600; margin: 6px 0 8px; letter-spacing: 1px; }
 @keyframes popin { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .tile .busy { position: absolute; left: 0; right: 0; bottom: 0; background: #3a2f12dd; color: #ffe7a8; font-size: 9px; text-align: center; z-index: 5; pointer-events: none; }
+.slot.tall { min-height: 104px; }
+.slot.hands-slot { border-color: #4f7a5a; background: #0f1a14; } .slot.hands-slot > .lbl { color: #9fd3a8; }
 .slot.ready-slot { border-color: #8a6d2a; background: #17150d; }
+.slot.ready-slot > .dim { font-size: 10px; text-align: center; padding: 14px 4px 0; }
+.slot .stage-note { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9px; text-align: center; background: #3a2f12dd; color: #ffe7a8; padding: 1px 2px; z-index: 6; pointer-events: none; }
 .slot.ready-slot > .lbl { color: var(--accent); }
+
+/* id fields with catalog drop-downs (Item Editor) */
+.id-field { position: relative; }
+.id-box { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; min-height: 28px; padding: 2px 4px; border: 1px solid var(--line2); border-radius: var(--radius); background: #0b141b; cursor: text; }
+.id-box input { flex: 1; min-width: 70px; border: 0 !important; background: transparent !important; padding: 3px 2px !important; outline: none; box-shadow: none !important; }
+.id-box.single { padding-right: 18px; position: relative; } .id-box .id-caret { position: absolute; right: 6px; color: var(--dim); font-size: 10px; pointer-events: none; }
+.id-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 2px 1px 6px; border-radius: 3px; background: #1f3442; border: 1px solid #36566b; font-size: 11px; color: #dbeaf3; }
+.id-chip button { border: 0; background: transparent; color: var(--dim); padding: 0 3px; font-size: 10px; min-height: 0; cursor: pointer; } .id-chip button:hover { color: var(--bad); }
+.id-drop { position: absolute; left: 0; right: 0; top: 100%; z-index: 50; max-height: 260px; overflow: auto; background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: 0 10px 30px #000a; margin-top: 2px; min-width: 220px; }
+.id-group { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); padding: 5px 8px 2px; position: sticky; top: 0; background: var(--panel); }
+.id-opt { padding: 4px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .id-opt:hover { background: #20384a; } .id-opt.dim { cursor: default; color: var(--dim); }

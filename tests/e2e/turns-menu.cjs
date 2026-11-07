@@ -72,9 +72,9 @@ const gm = { role: 'gm' };
   await A.click('.turn-pop button:has-text("Take my turn")');
   await A.waitForSelector('.nav button.active:has-text("Combat")');
   await A.waitForSelector('.notice-bar:has-text("not in your hands")');
-  await A.click('.notice-bar button:has-text("Ready it")');
-  await waitFor(() => s().items[rifle].loc.slot === 'ready' && s().items[rifle].readyAt === 2);
-  await A.waitForSelector('.notice-bar:has-text("usable from round 2")');
+  await A.click('.notice-bar button:has-text("Draw it")');
+  await waitFor(() => s().items[rifle].loc.slot === 'hands' && s().items[rifle].readyAt === 2);
+  await A.waitForSelector('.notice-bar:has-text("turn is spent (drawing")');
   await shot(A, '4-readying-rifle');
   await A.click('.turn-bar button:has-text("End my turn")');
   await waitFor(() => e().order[e().turn] === marta);
@@ -118,6 +118,23 @@ const gm = { role: 'gm' };
   // after a break the order restarts from the top: Ivan is told it is his turn again
   await A.waitForSelector('.turn-pop:has-text("Your turn")');
   await A.click('.turn-pop button:has-text("Close")');
+  // ---- Ready slot: stage a magazine for next turn from the context menu; it goes in automatically
+  await A.click('.nav button:has-text("Inventory")');
+  const spare = A.locator('.grid .tile:has-text("AK 7.62")').first();
+  await spare.click({ button: 'right' });
+  await A.click('.ctx .it:has-text("Use next turn")');
+  await A.waitForSelector('.slot.ready-slot .stage-note');
+  await shot(A, '8-ready-slot-staged');
+  await A.click('.turn-bar button:has-text("End my turn")');
+  await waitFor(() => e().order[e().turn] !== ivan);
+  while (e().order[e().turn] !== ivan) d('enc.next', { id: enc });
+  await waitFor(() => e().order[e().turn] === ivan && e().round === 8);
+  await A.waitForSelector('.turn-pop:has-text("This turn")');
+  await shot(A, '9-turn-spent-reloading');
+  await A.click('.turn-pop button:has-text("Close")');
+  assert.equal(e().combatants[ivan].turnSpent, 8);
+  console.log('Ready slot OK: magazine staged, loaded automatically at the start of the next turn');
+
   // ---- main menu button frees the character
   await A.click('button:has-text("Main menu")');
   await A.waitForSelector('.menu-char');

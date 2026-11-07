@@ -27,7 +27,7 @@ const gm = { role: 'gm' };
   const pid = d('player.save', { name: 'Ivan (player)' }).result.id;
   const pc = d('char.create', { name: 'Stalker Ivan', kind: 'pc', ownerId: pid }).result.id;
   d('char.manualBuild', { id: pc, build: { st: 11, dx: 12, iq: 11, ht: 11, hp: 11, fp: 11, basicSpeed: 5.75, basicMove: 5, dodge: 8, skills: [{ name: 'Guns', spec: 'Rifle', level: 14 }, { name: 'Lockpicking', spec: '', level: 12 }] } });
-  const akm = d('item.spawn', { defId: 't1-weapon-vpo-136-vepr-km', target: { p: 'char:' + pc, slot: 'ready' } }).result.ids[0];
+  const akm = d('item.spawn', { defId: 't1-weapon-vpo-136-vepr-km', target: { p: 'char:' + pc, slot: 'hands' } }).result.ids[0];
   d('item.spawn', { defId: 'sample-chest-rig', target: { p: 'char:' + pc, slot: 'rig' } });
   const mag = d('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc, loadFull: true, ammoId: 't1-ammo-7-62-39mm-fmj' }).result.ids[0];
   d('item.insertMag', { weaponId: akm, magId: mag });
@@ -152,7 +152,7 @@ const gm = { role: 'gm' };
 
   // ---------------- Inventory & weapon customization smoke
   await P.click('.nav button:has-text("Inventory")');
-  await P.waitForSelector('.slot:has-text("In hands") .tile');
+  await P.waitForSelector('.slot.hands-slot .tile');
   await shot(P, '4a-inventory');
   await P.click('.nav button:has-text("Equipment")');
   await P.click('.list-item:has-text("PSO-1") button:has-text("Install")');

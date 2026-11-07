@@ -11,12 +11,12 @@ function scene() {
   const bandit = engine.dispatch('char.create', { name: 'Bandit 1', kind: 'npc', faction: 'Bandits' }, gm).result.id;
   giveBuild(engine, gm, bandit, { st: 10, dx: 11, iq: 9, ht: 10, hp: 10, fp: 10, basicSpeed: 5.25, basicMove: 5, dodge: 8, skills: [{ name: 'Guns', spec: 'Pistol', level: 12 }] });
   // PC: AKM in primary slot with a loaded 30-round magazine
-  const akm = engine.dispatch('item.spawn', { defId: 'builtin-akm-76239', target: { p: 'char:' + pc, slot: 'ready' } }, gm).result.ids[0];
+  const akm = engine.dispatch('item.spawn', { defId: 'builtin-akm-76239', target: { p: 'char:' + pc, slot: 'hands' } }, gm).result.ids[0];
   const mag = engine.dispatch('item.spawn', { defId: 'mag-ak762-30', to: 'char:' + pc, loadFull: true, ammoId: 't1-ammo-7-62-39mm-fmj' }, gm).result.ids[0];
   engine.dispatch('item.insertMag', { weaponId: akm, magId: mag }, t.player);
   // Bandit: leather jacket (DR 1 torso) and a loaded TT pistol
   engine.dispatch('item.spawn', { defId: 'arm-leather-jacket', target: { p: 'char:' + bandit, slot: 'armor' } }, gm);
-  const tt = engine.dispatch('item.spawn', { defId: 't1-weapon-tt', target: { p: 'char:' + bandit, slot: 'ready' } }, gm).result.ids[0];
+  const tt = engine.dispatch('item.spawn', { defId: 't1-weapon-tt', target: { p: 'char:' + bandit, slot: 'hands' } }, gm).result.ids[0];
   const ttMag = engine.dispatch('item.spawn', { defId: 't1-mag-tt-8-round-magazine', to: 'char:' + bandit, loadFull: true }, gm).result.ids[0];
   engine.dispatch('item.insertMag', { weaponId: tt, magId: ttMag }, gm);
   const enc = engine.dispatch('enc.create', { name: 'Ambush', participants: [pc, bandit] }, gm).result.id;

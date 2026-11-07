@@ -7,7 +7,7 @@ import { AttackForm, SkillRoller, ManeuverBar, Vitals, weaponOptions } from './c
 import { openSpawn } from './spawn.js';
 
 function weaponSummary(v, c) {
-  const w = ['primary', 'holster', 'secondary', 'melee'].map(s => M.equippedIn(v, c.id, s)).find(Boolean);
+  const w = ['hands', 'primary', 'holster', 'secondary', 'melee'].map(s => M.equippedIn(v, c.id, s)).find(i => i && M.def(v, i)?.weapon);
   if (!w) return (c.build?.weapons || [])[0] ? `${c.build.weapons[0].owner} ${c.build.weapons[0].damage}` : 'unarmed';
   return `${M.itemName(v, w)}${w.feed ? ` · ${w.feed.rounds}${w.feed.capacity ? '/' + w.feed.capacity : ''} rds` : ''}`;
 }
@@ -57,7 +57,7 @@ export function NpcControl({ v, enc, actorId, setActorId, setSelected }) {
   if (!actor) return html`<div class="npc-bar"><span class="muted">All NPCs in this encounter are down.</span></div>`;
   const cs = enc.combatants[actor.id];
   const weapons = weaponOptions(v, actor).filter(o => !o.item || o.item.loc.g !== 'ground');
-  const w = weapons.find(o => o.key === wKey) || weapons.find(o => o.item?.loc.slot === 'ready') || weapons.find(o => o.item && cs?.readyWeaponId === o.item.id) || weapons.find(o => o.kind === 'ranged' && o.rounds > 0) || weapons[0];
+  const w = weapons.find(o => o.key === wKey) || weapons.find(o => o.item?.loc.slot === 'hands') || weapons.find(o => o.item && cs?.readyWeaponId === o.item.id) || weapons.find(o => o.kind === 'ranged' && o.rounds > 0) || weapons[0];
   const target = v.characters[tgt] && tgt !== actor.id ? tgt : (cs?.targetId && alive(v.characters[cs.targetId]) ? cs.targetId : defaultTarget(v, enc, actor));
   const rof = parseInt(w?.rof, 10) || 1;
   const maxShots = Math.max(1, Math.min(rof, w?.rounds === Infinity ? rof : w?.rounds || 1));
@@ -85,9 +85,9 @@ export function NpcControl({ v, enc, actorId, setActorId, setSelected }) {
       ${dist === null && target ? html`<span class="chip warn" title="Set it in the selected combatant's Distances">no distance set</span>` : null}
     </div>
     <div class="row" style=${{ marginTop: '6px' }}>
-      ${w?.item && w.item.loc.slot !== 'ready' && v.settings?.rules?.readyRequired !== false ? html`<button class="good" disabled=${busy} onClick=${() => act(() => run('item.ready', { itemId: w.item.id, charId: actor.id }, { ok: true }))} title="Ready maneuver: usable next round. Right-click the item for Fast-Draw or instant readying.">✋ Draw (ready)</button>` : null}
+      ${w?.item && w.item.loc.slot !== 'hands' && v.settings?.rules?.readyRequired !== false ? html`<button class="good" disabled=${busy} onClick=${() => act(() => run('item.ready', { itemId: w.item.id, charId: actor.id }, { ok: true }))} title="Ready maneuver: usable next round. Right-click the item for Fast-Draw or instant readying.">✋ Draw (ready)</button>` : null}
       ${w?.item?.readyAt ? html`<span class="chip warn">${w.item.busy || 'readying'} → R${w.item.readyAt}</span>` : null}
-      <button class="primary" disabled=${busy || !w || !alive(actor) || enc.break || (w.kind === 'ranged' && !w.rounds) || (w.item && ((v.settings?.rules?.readyRequired !== false && w.item.loc.slot !== 'ready') || (w.item.readyAt && enc.round < w.item.readyAt)))} onClick=${attack}>🎯 Attack${w?.kind === 'ranged' ? ` (${w.rounds === Infinity ? '∞' : w.rounds} rds)` : ''}</button>
+      <button class="primary" disabled=${busy || !w || !alive(actor) || enc.break || (w.kind === 'ranged' && !w.rounds) || (w.item && ((v.settings?.rules?.readyRequired !== false && w.item.loc.slot !== 'hands') || (w.item.readyAt && enc.round < w.item.readyAt)))} onClick=${attack}>🎯 Attack${w?.kind === 'ranged' ? ` (${w.rounds === Infinity ? '∞' : w.rounds} rds)` : ''}</button>
       ${w?.item && w.kind === 'ranged' ? html`<button disabled=${busy} onClick=${reload} class=${!w.rounds ? 'good' : ''}>↻ Reload</button>` : null}
       <button disabled=${busy || !w?.item} onClick=${aim} title="Aim maneuver at the chosen target (adds Acc, then +1/+2)">Aim${cs?.aim ? ` (${cs.aim.turns})` : ''}</button>
       <select value="" onChange=${e => { if (e.target.value) run('combat.maneuver', { id: enc.id, charId: actor.id, maneuver: e.target.value, weaponId: w?.item?.id, targetId: target }); e.target.value = ''; }}><option value="">Other maneuver…</option>${M.MANEUVERS.filter(([k]) => !['attack', 'aim'].includes(k)).map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select>
@@ -152,7 +152,7 @@ export function TargetPanel({ v, c, enc }) {
   const cs = enc?.combatants?.[c.id];
   const quick = n => run('char.adjust', { id: c.id, hp: n, reason: 'GM quick adjust' });
   const pendingFor = Object.values(v.events).filter(e => e.stage === 'resolved' && e.proposal?.targetId === c.id && e.proposal.hp);
-  const mainWeapon = ['primary', 'secondary', 'holster'].map(sl => M.equippedIn(v, c.id, sl)).find(i => M.def(v, i)?.weapon?.kind === 'ranged');
+  const mainWeapon = ['hands', 'primary', 'secondary', 'holster'].map(sl => M.equippedIn(v, c.id, sl)).find(i => M.def(v, i)?.weapon?.kind === 'ranged');
   return html`<${Panel} title=${c.name} actions=${html`<button class="small" onClick=${() => openSpawn(v, 'char:' + c.id)} title="Spawn an item from the catalog into this character's inventory (G)">+ Give item</button><span class="chip">${c.kind === 'npc' ? 'NPC' : 'PC'}</span>`}>
     <div class="row nowrap" style=${{ alignItems: 'flex-start' }}>${c.portrait && M.imageUrl(v, c.portrait) ? html`<img class="portrait" src=${M.imageUrl(v, c.portrait)} />` : null}
       <div class="grow"><${Vitals} v=${v} c=${c} compact=${true} />

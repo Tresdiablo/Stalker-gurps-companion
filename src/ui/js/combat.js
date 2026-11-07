@@ -9,11 +9,11 @@ const QUICK_MODS = [-4, -2, -1, +1, +2, +4];
 export function weaponOptions(v, c) {
   const out = [];
   const carried = M.owned(v, c.id).filter(i => M.def(v, i)?.weapon && i.loc.mount === undefined && !(i.loc.g === 'ground'));
-  const order = { ready: -1, primary: 0, secondary: 1, holster: 2, melee: 3 };
+  const order = { hands: -1, primary: 0, secondary: 1, holster: 2, melee: 3 };
   carried.sort((a, b) => (order[a.loc.slot] ?? 9) - (order[b.loc.slot] ?? 9));
   for (const w of carried) {
     const d = M.def(v, w);
-    out.push({ key: 'item:' + w.id, ref: { itemId: w.id }, label: `${w.loc.slot === 'ready' ? '✋ ' : ''}${M.itemName(v, w)}${w.loc.slot === 'ready' ? (w.readyAt ? ` (${w.busy || 'readying'} → R${w.readyAt})` : ' (in hands)') : w.loc.slot ? ' (slung)' : ' (stowed)'}${d.weapon.kind === 'ranged' ? ` · ${w.feed?.rounds ?? 0} rds` : ''}`, kind: d.weapon.kind, rof: d.weapon.rof, rounds: w.feed?.rounds ?? 0, item: w, def: d });
+    out.push({ key: 'item:' + w.id, ref: { itemId: w.id }, label: `${w.loc.slot === 'hands' ? '✋ ' : ''}${M.itemName(v, w)}${w.loc.slot === 'hands' ? (w.readyAt ? ` (${w.busy || 'readying'} → R${w.readyAt})` : ' (in hands)') : w.loc.slot ? ` (${({ primary: 'sling', secondary: 'back', holster: 'holster', melee: 'sheath', ready: 'Ready slot' })[w.loc.slot] || w.loc.slot})` : ' (stowed)'}${d.weapon.kind === 'ranged' ? ` · ${w.feed?.rounds ?? 0} rds` : ''}`, kind: d.weapon.kind, rof: d.weapon.rof, rounds: w.feed?.rounds ?? 0, item: w, def: d });
   }
   (c.build?.weapons || []).forEach((w, i) => out.push({ key: 'gcs:' + (w.id || i), ref: { gcsWeaponId: w.id || String(i) }, label: `${w.owner}${w.usage ? ` (${w.usage})` : ''} · ${w.damage} [sheet]`, kind: w.kind, rof: w.rof || '1', rounds: Infinity, gcs: w }));
   return out;
@@ -25,9 +25,11 @@ function blockReason(v, enc, actorId, w) {
   if (enc.break) return 'Break in the action — nobody attacks. Use the time to ready, reload or aim.';
   const gm = v.role === 'gm';
   if (!gm && v.settings?.rules?.enforceTurns !== false && enc.order[enc.turn] !== actorId) return `Wait for your turn — it is ${M.charName(v, enc.order[enc.turn])}'s turn.`;
+  const cs = enc.combatants?.[actorId];
+  if (cs?.turnSpent === enc.round) return `This turn is spent (${cs.turnSpentOn || 'busy'}). End your turn.`;
   if (!w?.item) return null;
   if (w.item.readyAt && enc.round < w.item.readyAt) return `${M.itemName(v, w.item)} is ${w.item.busy || 'being readied'} — usable from round ${w.item.readyAt}.`;
-  if (v.settings?.rules?.readyRequired !== false && w.item.loc.slot !== 'ready') return `${M.itemName(v, w.item)} is not in your hands. Readying takes this turn (usable next round), or roll Fast-Draw.`;
+  if (v.settings?.rules?.readyRequired !== false && w.item.loc.slot !== 'hands') return `${M.itemName(v, w.item)} is not in your hands. Drawing it takes this turn (usable next round), or roll Fast-Draw.`;
   return null;
 }
 
@@ -89,7 +91,7 @@ export function AttackForm({ v, actorId, compact }) {
     </div>
     ${gm ? html`<div class="row small"><label class="row"><input type="checkbox" checked=${unaware} onChange=${e => setUnaware(e.target.checked)} /> Target unaware (no defense)</label>
       <label class="row">Visibility <select value=${visibility} onChange=${e => setVis(e.target.value)}><option value="public">Public</option><option value="gm">GM only</option></select></label></div>` : null}
-    ${(() => { const why = blockReason(v, enc, actorId, w); return why ? html`<div class="notice-bar small">${why}${w?.item && w.item.loc.slot !== 'ready' && !enc?.break ? html` <button class="small good" onClick=${() => run('item.ready', { itemId: w.item.id, charId: actorId }, { ok: true })}>✋ Ready it</button> <button class="small" onClick=${() => run('item.ready', { itemId: w.item.id, charId: actorId, fastDraw: true }, { ok: true })}>⚡ Fast-Draw</button>` : null}</div>` : null; })()}
+    ${(() => { const why = blockReason(v, enc, actorId, w); return why ? html`<div class="notice-bar small">${why}${w?.item && w.item.loc.slot !== 'hands' && !enc?.break ? html` <button class="small good" onClick=${() => run('item.ready', { itemId: w.item.id, charId: actorId }, { ok: true })}>✋ Draw it</button> <button class="small" onClick=${() => run('item.ready', { itemId: w.item.id, charId: actorId, fastDraw: true }, { ok: true })}>⚡ Fast-Draw</button>` : null}</div>` : null; })()}
     <div class="row"><button class="primary" disabled=${busy || !w || (w.kind === 'ranged' && !w.rounds) || !!blockReason(v, enc, actorId, w)} onClick=${roll}>🎯 Roll attack${w?.kind === 'ranged' && !w.rounds ? ' (empty)' : ''}</button>
       ${w?.item && w.kind === 'ranged' ? html`<button class=${!w.rounds ? 'good' : ''} onClick=${() => run('weapon.reload', { weaponId: w.item.id }, { ok: true })} title="Insert the fullest magazine you carry, or load loose rounds">↻ Reload</button>` : null}
       ${w?.item && w.kind === 'ranged' && !w.def.weapon.integral ? html`<span class="muted small">${w.item.feed?.chamber ? 'Round chambered' : 'Chamber empty'}</span>` : null}</div>
@@ -112,7 +114,7 @@ export function ManeuverBar({ v, actorId }) {
     <div class="row">
       <button onClick=${() => set('aim')} ...${tipProps('Aim (B364): first turn adds the weapon Acc, +1 for a second turn, +2 for three or more. Aim at the selected target with the readied weapon.')}>Aim${cs?.aim ? ` (${cs.aim.turns})` : ''}</button>
       <button onClick=${() => set('aim', { braced: true })}>Aim braced</button>
-      <select onChange=${e => { if (e.target.value) set('ready', { weaponId: e.target.value }); e.target.value = ''; }}><option value="">Ready weapon…</option>${weapons.map(o => html`<option value=${o.item.id}>${o.label}</option>`)}</select>
+      <select onChange=${e => { if (e.target.value) run('item.ready', { itemId: e.target.value, charId: actorId }, { ok: true }); e.target.value = ''; }} title="Draw a weapon into your hands (takes the turn)"><option value="">Draw weapon…</option>${weapons.filter(o => o.item && o.item.loc.slot !== 'hands').map(o => html`<option value=${o.item.id}>${o.label}</option>`)}</select>
       ${M.MANEUVERS.filter(([k]) => !['aim', 'ready', 'attack'].includes(k)).map(([k, l]) => html`<button class="small" onClick=${() => set(k)}>${l}</button>`)}
     </div></div>`;
 }

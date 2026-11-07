@@ -1,6 +1,6 @@
 // Tarkov-style inventory: grids, equipment slots, layered weapon art, drag-and-drop and
 // context menus. One component set serves characters, NPCs, stashes, traders and containers.
-import { html, useState, useEffect, useRef, openMenu, run, toast, askNumber, openModal, Modal, money, tipProps, FloatWin } from './ui.js';
+import { html, useState, useEffect, useRef, zf, renderInto, openMenu, run, toast, askNumber, openModal, Modal, money, tipProps, FloatWin } from './ui.js';
 import { conn } from './net.js';
 import * as M from './model.js';
 
@@ -166,7 +166,7 @@ export function Tile({ v, it, ctx, style, inSlot, price }) {
     <span class="name">${M.itemName(v, it)}</span>
     ${it.cond !== undefined && it.cond < 100 ? html`<span class="cond">${it.cond}%</span>` : null}
     ${badges.length ? html`<span class="badges">${badges.map(b => html`<span>${b}</span>`)}</span>` : null}
-    ${it.readyAt ? html`<span class="busy">⏳ ${it.busy || 'readying'} · R${it.readyAt}</span>` : null}
+    ${it.readyAt ? html`<span class="busy">⏳ ${it.busy || 'readying'} · R${it.readyAt}</span>` : it.stage ? html`<span class="busy">⏭ next turn${it.stage.due > (Object.values(v.encounters || {}).find(e => e.status === 'active')?.round || 0) + 1 ? ` · R${it.stage.due}` : ''}</span>` : null}
     ${price !== undefined ? html`<span class="price">${money(price)}</span>` : d?.stack > 1 ? html`<span class="qty">${it.qty}</span>` : null}
     ${d?.magazine || d?.weapon?.integral ? html`<span class="rounds">${M.roundCount(it.rounds)}/${d.magazine?.capacity || d.weapon.integral.capacity}</span>` : d?.weapon?.kind === 'ranged' && it.feed ? html`<span class="rounds">${it.feed.rounds}</span>` : null}
   </div>`;
@@ -190,7 +190,8 @@ export function Grid({ v, parentRef, grid, ctx, prices }) {
 export function Slot({ v, charId, slot, label, ctx, cls = '' }) {
   const it = M.equippedIn(v, charId, slot);
   return html`<div class="slot ${cls}" data-drop="slot" data-ref=${'char:' + charId} data-slot=${slot}>
-    <span class="lbl">${label}</span>${it ? html`<${Tile} v=${v} it=${it} ctx=${ctx} inSlot=${true} />` : html`<span class="dim tiny">empty</span>`}</div>`;
+    <span class="lbl">${label}</span>${it ? html`<${Tile} v=${v} it=${it} ctx=${ctx} inSlot=${true} />` : html`<span class="dim tiny">${slot === 'ready' ? 'use next turn: magazine, rounds, clip, medkit, weapon' : 'empty'}</span>`}
+    ${slot === 'ready' && it?.stage ? html`<span class="stage-note">⏭ ${it.stage.label}${it.stage.kind === 'rounds' ? ' — each turn' : ''}</span>` : null}</div>`;
 }
 
 /* ================================================================ drag and drop */
@@ -214,7 +215,8 @@ function startDrag(e, v, it, ctx) {
   const el = e.currentTarget;
   const rect = el.getBoundingClientRect();
   const cell = cellPx();
-  drag = { v, it, ctx, el, sx: e.clientX, sy: e.clientY, offX: e.clientX - rect.left, offY: e.clientY - rect.top, started: false, r: !!it.loc?.r, ghost: null, preview: null, target: null, cell };
+  // offX/offY and all rects are in screen pixels; z converts to the zoomed body's CSS pixels
+  drag = { v, it, ctx, el, sx: e.clientX, sy: e.clientY, offX: e.clientX - rect.left, offY: e.clientY - rect.top, started: false, r: !!it.loc?.r, ghost: null, preview: null, target: null, cell, z: zf() };
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp, { once: true });
   window.addEventListener('keydown', onKey);
@@ -222,7 +224,7 @@ function startDrag(e, v, it, ctx) {
 
 function onKey(e) {
   if (!drag?.started) return;
-  if (e.key === 'r' || e.key === 'R') { drag.r = !drag.r; const t = drag.offX; drag.offX = drag.offY; drag.offY = t; drag.ghost.style.transform = drag.r !== !!drag.it.loc?.r ? 'rotate(90deg)' : 'none'; onMove(drag.lastEv); }
+  if (e.key === 'r' || e.key === 'R') { drag.r = !drag.r; const t = drag.offX; drag.offX = drag.offY; drag.offY = t; drag.ghost.style.transformOrigin = 'top left'; drag.ghost.style.transform = drag.r !== !!drag.it.loc?.r ? `translateX(${drag.ghost.offsetHeight}px) rotate(90deg)` : 'none'; onMove(drag.lastEv); }
   if (e.key === 'Escape') cancelDrag();
 }
 
@@ -232,15 +234,21 @@ function onMove(e) {
   if (!drag.started) {
     if (Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 5) return;
     drag.started = true;
-    const g = drag.el.cloneNode(true);
-    g.classList.add('drag-ghost');
     const r = drag.el.getBoundingClientRect();
-    g.style.width = r.width + 'px'; g.style.height = r.height + 'px'; g.style.left = '0'; g.style.top = '0';
+    // the ghost is a fresh tile with the item's grid footprint, so an item picked up from a wide
+    // equipment slot is not dragged at the slot's size; the grab point stays proportional
+    const fp = M.footprint(drag.v, drag.it, drag.it.loc?.r);
+    const gw = fp.w * drag.cell - 2, gh = fp.h * drag.cell - 2;
+    drag.offX = Math.min(drag.offX * (gw * drag.z) / r.width, gw * drag.z - 4); drag.offY = Math.min(drag.offY * (gh * drag.z) / r.height, gh * drag.z - 4);
+    const g = document.createElement('div');
+    g.className = 'drag-ghost';
+    Object.assign(g.style, { width: gw + 'px', height: gh + 'px', left: '0', top: '0' });
+    renderInto(html`<${Tile} v=${drag.v} it=${drag.it} ctx=${drag.ctx} style=${{ left: '0px', top: '0px', width: gw + 'px', height: gh + 'px' }} />`, g);
     document.body.appendChild(g); drag.ghost = g;
     drag.el.style.opacity = '0.35';
   }
-  drag.ghost.style.left = e.clientX - drag.offX + 'px';
-  drag.ghost.style.top = e.clientY - drag.offY + 'px';
+  drag.ghost.style.left = (e.clientX - drag.offX) / drag.z + 'px';
+  drag.ghost.style.top = (e.clientY - drag.offY) / drag.z + 'px';
   const under = document.elementsFromPoint(e.clientX, e.clientY).find(n => n.dataset?.drop && n !== drag.el && !drag.el.contains(n));
   clearPreview();
   drag.target = null;
@@ -254,7 +262,8 @@ function onMove(e) {
     const ok = M.canPlaceGrid(drag.v, drag.it, under.dataset.ref, under.dataset.grid, x, y, drag.r);
     const p = document.createElement('div');
     p.className = 'preview ' + (ok ? 'ok' : 'bad');
-    Object.assign(p.style, { left: x * cw + 'px', top: y * cw + 'px', width: fp.w * cw + 'px', height: fp.h * cw + 'px' });
+    const lc = cw / drag.z; // one cell in the grid's own (zoomed) CSS pixels
+    Object.assign(p.style, { left: x * lc + 'px', top: y * lc + 'px', width: fp.w * lc + 'px', height: fp.h * lc + 'px' });
     under.appendChild(p); drag.preview = p;
     drag.target = { kind, ref: under.dataset.ref, grid: under.dataset.grid, x, y, r: drag.r ? 1 : 0, ok };
   } else if (kind === 'slot') {
@@ -281,7 +290,7 @@ function clearPreview() {
 function cancelDrag() {
   if (!drag) return;
   clearPreview();
-  drag.ghost?.remove();
+  if (drag.ghost) { renderInto(null, drag.ghost); drag.ghost.remove(); }
   if (drag.el) drag.el.style.opacity = '';
   window.removeEventListener('pointermove', onMove);
   window.removeEventListener('keydown', onKey);
@@ -354,10 +363,14 @@ export function itemMenu(e, v, it, ctx) {
     items.push({ label: `Buy (${money(v.traderPrices[it.id])})`, onClick: () => buyItem(v, it, ctx) }, { label: 'Inspect', onClick: () => inspect(v, it) });
     return openMenu(e, items);
   }
-  if (charId && (mine || gm) && it.loc?.slot !== 'ready') {
-    items.push({ label: '✋ Ready (put in hands)', hint: 'next turn', onClick: () => run('item.ready', { itemId: it.id, charId }, { ok: true }) });
-    if (d.weapon || d.category === 'ammo' || d.category === 'magazine') items.push({ label: '⚡ Fast-Draw (roll to ready now)', onClick: () => run('item.ready', { itemId: it.id, charId, fastDraw: true }, { ok: true }) });
-    if (gm) items.push({ label: 'Ready instantly (GM)', onClick: () => run('item.ready', { itemId: it.id, charId, instant: true }, { ok: true }) });
+  if (charId && (mine || gm) && it.loc?.slot !== 'hands' && it.loc?.slot !== 'ready') {
+    const toReady = instant => run('item.move', { itemId: it.id, target: { p: 'char:' + charId, slot: 'ready' }, instant }, { ok: true });
+    if (d.magazine || d.ammo || d.consumable) items.push({ label: '⏭ Use next turn (Ready slot)', hint: d.magazine?.clip ? 'stripper clip' : d.magazine ? 'reload' : d.ammo ? 'load rounds' : 'use', onClick: () => toReady(false) });
+    if (d.weapon || !(d.magazine || d.ammo || d.consumable)) {
+      items.push({ label: '✋ Draw into hands', hint: 'takes a turn', onClick: () => run('item.ready', { itemId: it.id, charId }, { ok: true }) });
+      if (d.weapon) items.push({ label: '⚡ Fast-Draw (roll to draw now)', onClick: () => run('item.ready', { itemId: it.id, charId, fastDraw: true }, { ok: true }) });
+    }
+    if (gm) items.push({ label: d.magazine || d.ammo || d.consumable ? 'Use now (GM, no time)' : 'Draw instantly (GM)', onClick: () => (d.magazine || d.ammo || d.consumable ? toReady(true) : run('item.ready', { itemId: it.id, charId, instant: true }, { ok: true })) });
   }
   if (d.weapon?.kind === 'ranged' && (mine || gm)) items.push({ label: '↻ Reload', hint: 'best magazine / loose rounds', onClick: () => run('weapon.reload', { weaponId: it.id }, { ok: true }) });
   items.push({ label: 'Inspect', hint: 'dbl-click', onClick: () => inspect(v, it) });
@@ -476,10 +489,10 @@ export function CharacterInventory({ v, charId, extraRight, customize, traderId 
   return html`<div class="inv-layout">
     <section class="panel"><header><h2 class="grow">Equipment</h2><span class="muted small">${c.name}</span></header><div class="body col">
       <div class="slots">
-        <${Slot} v=${v} charId=${charId} slot="ready" label="✋ In hands (ready) — drag here to ready; usable next turn in combat" ctx=${ctx} cls="wide ready-slot" />
+        <${Slot} v=${v} charId=${charId} slot="hands" label="✋ Hands" ctx=${ctx} cls="w2 tall hands-slot" /><${Slot} v=${v} charId=${charId} slot="ready" label="⏭ Ready" ctx=${ctx} cls="tall ready-slot" />
         <${Slot} v=${v} charId=${charId} slot="helmet" label="Helmet" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="face" label="Face" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="armor" label="Body armor" ctx=${ctx} />
         <${Slot} v=${v} charId=${charId} slot="rig" label="Rig" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="backpack" label="Backpack" ctx=${ctx} /><${Slot} v=${v} charId=${charId} slot="melee" label="Melee" ctx=${ctx} />
-        <${Slot} v=${v} charId=${charId} slot="primary" label="Primary weapon" ctx=${ctx} cls="wide" /><${Slot} v=${v} charId=${charId} slot="secondary" label="Secondary weapon" ctx=${ctx} cls="wide" />
+        <${Slot} v=${v} charId=${charId} slot="primary" label="Sling" ctx=${ctx} cls="wide" /><${Slot} v=${v} charId=${charId} slot="secondary" label="Back" ctx=${ctx} cls="wide" />
         <${Slot} v=${v} charId=${charId} slot="holster" label="Holster" ctx=${ctx} cls="w2" /><${Slot} v=${v} charId=${charId} slot="artifact1" label="Artifact" ctx=${ctx} />
       </div>
       <${Grid} v=${v} parentRef=${ref} grid=${M.gridsOf(v, ref)[0]} ctx=${ctx} />

@@ -61,15 +61,15 @@ export function canPlaceGrid(v, it, ref, gridId, x, y, r) {
 }
 
 export const SLOTS = [
-  ['ready', 'In hands', null, null],
+  ['hands', 'Hands', null, null], ['ready', 'Ready (next turn)', null, null],
   ['helmet', 'Helmet', ['armor'], ['Helmets']], ['face', 'Face', ['armor'], ['Masks']], ['armor', 'Body armor', ['armor'], ['Body Armor', 'Suits', 'Clothing']],
   ['rig', 'Tactical rig', ['equipment'], ['Tactical Rigs']], ['backpack', 'Backpack', ['equipment'], ['Backpacks']],
-  ['primary', 'Primary', ['weapon'], null], ['secondary', 'Secondary', ['weapon'], null], ['holster', 'Holster', ['weapon'], ['Pistols', 'Revolvers']], ['melee', 'Melee', ['weapon'], ['Melee Weapons']],
+  ['primary', 'Sling', ['weapon'], null], ['secondary', 'Back', ['weapon'], null], ['holster', 'Holster', ['weapon'], ['Pistols', 'Revolvers']], ['melee', 'Melee', ['weapon'], ['Melee Weapons']],
   ['artifact1', 'Artifact', ['artifact'], null], ['artifact2', 'Artifact', ['artifact'], null], ['artifact3', 'Artifact', ['artifact'], null],
 ];
 export function slotsFor(d) {
   if (!d) return [];
-  if (d.slots?.length) return d.slots.includes('ready') ? d.slots : [...d.slots, 'ready'];
+  if (d.slots?.length) return [...new Set([...d.slots, 'hands', 'ready'])];
   return SLOTS.filter(([id, , cats, subs]) => (!cats || cats.includes(d.category)) && (!subs || subs.includes(d.sub)) && !(d.category === 'weapon' && (id === 'primary' || id === 'secondary') && d.sub === 'Melee Weapons')).map(s => s[0]);
 }
 export const equippedIn = (v, charId, slot) => children(v, 'char:' + charId).find(i => i.loc.slot === slot) || null;

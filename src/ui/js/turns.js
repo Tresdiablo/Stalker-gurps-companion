@@ -37,7 +37,7 @@ function nextUp(v, enc) {
 
 /** What the character holds in hands and whether it can be used. */
 function inHands(v, charId) {
-  const it = M.equippedIn(v, charId, 'ready');
+  const it = M.equippedIn(v, charId, 'hands');
   if (!it) return null;
   return { it, name: M.itemName(v, it), busy: it.readyAt ? `${it.busy || 'readying'} — usable from round ${it.readyAt}` : null, ranged: M.def(v, it)?.weapon?.kind === 'ranged' };
 }
@@ -80,16 +80,20 @@ export function TurnBanner({ v, charId, go, selectChar }) {
   }
 
   const nxt = nextUp(v, enc);
+  const spent = enc.combatants?.[actorId]?.turnSpent === enc.round;
   const popup = (mine || npcTurn) && dismissed !== key;
   const hand = mine ? inHands(v, actorId) : npcTurn ? inHands(v, actorId) : null;
   return html`${popup ? html`<div class="turn-pop-back" onMouseDown=${e => { if (e.target === e.currentTarget) setDismissed(key); }}>
       <div class="turn-pop ${npcTurn ? 'npc' : 'mine'}">
         <div class="turn-pop-kicker">${npcTurn ? 'NPC turn' : 'Your turn'} · Round ${enc.round}</div>
         <div class="turn-pop-name">${actor?.name}</div>
-        ${hand ? html`<div class="small">${hand.busy ? html`<span class="warn">✋ ${hand.name}: ${hand.busy}</span>` : html`✋ In hands: <b>${hand.name}</b>`}</div>` : html`<div class="small muted">Nothing in hands${mine ? ' — drag a weapon into the “In hands” slot to ready it (takes this turn).' : ''}</div>`}
+        ${(() => { const cs = enc.combatants?.[actorId]; const st = M.equippedIn(v, actorId, 'ready')?.stage; return cs?.turnSpent === enc.round ? html`<div class="small warn">⏭ This turn: ${cs.turnSpentOn || 'busy'}${st ? (st.kind === 'rounds' ? ' — continues next turn' : st.due > enc.round ? ` — done in round ${st.due}` : '') : ' — done'}. End your turn when ready.</div>` : st ? html`<div class="small">⏭ Ready slot: ${st.label}</div>` : null; })()}
+        ${hand ? html`<div class="small">${hand.busy ? html`<span class="warn">✋ ${hand.name}: ${hand.busy}</span>` : html`✋ In hands: <b>${hand.name}</b>`}</div>` : html`<div class="small muted">Nothing in hands${mine ? ' — drag a weapon into the Hands slot to draw it (takes this turn).' : ''}</div>`}
         ${nxt ? html`<div class="tiny dim">Next: ${nxt.name}</div>` : null}
         <div class="row" style=${{ marginTop: '12px', justifyContent: 'center' }}>
-          ${mine ? html`<button class="primary big" onClick=${() => { setDismissed(key); go('combat'); }}>Take my turn</button>
+          ${mine && spent ? html`<button class="primary big" onClick=${() => { setDismissed(key); end(); }}>End turn ▶</button>
+            <button onClick=${() => { setDismissed(key); go('combat'); }}>Open combat</button>`
+          : mine ? html`<button class="primary big" onClick=${() => { setDismissed(key); go('combat'); }}>Take my turn</button>
             ${hand?.ranged && !hand.busy ? html`<button onClick=${() => { setDismissed(key); run('weapon.reload', { weaponId: hand.it.id }, { ok: true }); }}>↻ Reload</button>` : null}
             <button onClick=${() => { setDismissed(key); end(); }}>End turn</button>`
           : html`<button class="primary big" onClick=${() => { setDismissed(key); selectChar(actorId); go('gm-dash'); }}>Control ${actor?.name}</button>

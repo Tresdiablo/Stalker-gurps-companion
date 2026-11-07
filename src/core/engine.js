@@ -24,6 +24,7 @@ const cat = require('./catalog');
 const gcs = require('./gcs');
 const campaign = require('./campaign');
 const tempo = require('./tempo');
+const staging = require('./staging');
 
 const isGM = a => a && a.role === 'gm';
 const MAX_PROCESSED = 3000;
@@ -242,8 +243,15 @@ H['item.move'] = (s, ctx, p, a) => {
   const dest = targetRoot(s, p.target);
   if (!isGM(a)) assert(canUseRef(s, a, dest, 'put'), 'You cannot put items there.');
   const from = inv.rootOf(s, it);
-  if (p.target.slot === 'ready') return readyItem(s, ctx, a, it, dest.slice(5), { instant: isGM(a) && p.instant });
-  const wasReady = it.loc?.slot === 'ready';
+  if (p.target.slot === 'hands') return readyItem(s, ctx, a, it, dest.slice(5), { instant: isGM(a) && p.instant });
+  if (p.target.slot === 'ready') {
+    const charId = dest.slice(5);
+    if (!isGM(a)) requireOwn(s, a, charId);
+    const note = staging.stage(s, ctx, a, it, charId, { instant: isGM(a) && !!p.instant });
+    return { summary: note, gmOnly: s.characters[charId]?.kind === 'npc' };
+  }
+  if (it.loc?.slot === 'ready') staging.unstage(it);
+  const wasReady = it.loc?.slot === 'hands';
   if (p.target.mount !== undefined) {
     const w = inv.getItem(s, p.target.p.slice(5));
     const mount = weapons.mountsOf(s, w).find(m => m.id === p.target.mount);
@@ -256,7 +264,7 @@ H['item.move'] = (s, ctx, p, a) => {
     else weapons.installAttachment(s, w, it, mount.id);
     if (t.mode === 'turn') tempo.markBusy(w, t.enc, secs, mount.slot === 'magazine' ? 'reloading' : 'being modified');
   } else inv.place(s, it, p.target);
-  if (wasReady && it.loc?.slot !== 'ready') { delete it.readyAt; delete it.busy; }
+  if (wasReady && it.loc?.slot !== 'hands') { delete it.readyAt; delete it.busy; }
   const gmOnly = [from, dest].every(r => r && r.startsWith('char:') && s.characters[r.slice(5)]?.kind === 'npc');
   return { summary: `Moved ${inv.itemName(s, it)}${from !== dest ? ` from ${describeRef(s, from)} to ${describeRef(s, dest)}` : ''}`, gmOnly, quiet: from === dest };
 };
@@ -272,9 +280,11 @@ function readyItem(s, ctx, a, it, charId, { fastDraw = false, instant = false } 
   if (!isGM(a)) requireOwn(s, a, charId);
   const t = tempo.spend(s, a, charId, 1, 'Readying an item');
   const ref = 'char:' + charId;
-  const held = inv.childrenOf(s, ref).find(i => i.loc.slot === 'ready' && i.id !== it.id);
-  if (held) { held.loc = null; inv.storeOnCharacter(s, held, ref); delete held.readyAt; delete held.busy; }
-  inv.place(s, it, { p: ref, slot: 'ready' });
+  const held = inv.childrenOf(s, ref).find(i => i.loc.slot === 'hands' && i.id !== it.id);
+  if (held) { held.loc = null; staging.holster(s, held, charId); delete held.readyAt; delete held.busy; }
+  if (it.loc?.slot === 'ready') staging.unstage(it);
+  it.loc = null;
+  inv.place(s, it, { p: ref, slot: 'hands' });
   let note = '';
   if (t.mode === 'turn' && !instant) {
     let quick = false;
@@ -287,7 +297,7 @@ function readyItem(s, ctx, a, it, charId, { fastDraw = false, instant = false } 
     }
     if (quick) tempo.markBusy(it, null, 0); else tempo.markBusy(it, t.enc, 1, 'being readied');
     const cs = t.enc.combatants[charId];
-    if (cs) { cs.maneuver = 'ready'; if (inv.defOf(s, it).weapon) cs.readyWeaponId = it.id; cs.aim = null; }
+    if (cs) { cs.maneuver = 'ready'; if (inv.defOf(s, it).weapon) cs.readyWeaponId = it.id; cs.aim = null; if (!quick) { cs.turnSpent = t.enc.round; cs.turnSpentOn = `drawing ${inv.itemName(s, it)}`; } }
     if (!quick) note += ` — usable from round ${it.readyAt}`;
   } else tempo.markBusy(it, null, 0);
   if (t.mode === 'break') note = ` (1 s of the break; ${t.remaining === Infinity ? '' : `${t.remaining} s left`})`;
@@ -601,7 +611,8 @@ H['enc.next'] = (s, ctx, p, a) => {
   if (p.expect && p.expect !== cur) return { summary: 'Turn already advanced', quiet: true }; // double click / two people pressing at once
   if (!isGM(a)) { assert(e.status === 'active' && !e.break, 'Combat is not running.'); requireOwn(s, a, cur); }
   const r = combat.nextTurn(s, e, ctx);
-  return { summary: `Round ${r.round}: ${charName(s, r.actorId)}'s turn${r.skipped.length ? ` (skipped ${r.skipped.join(', ')} — down)` : ''}` };
+  const staged = staging.onTurnStart(s, ctx, e, r.actorId);
+  return { summary: `Round ${r.round}: ${charName(s, r.actorId)}'s turn${r.skipped.length ? ` (skipped ${r.skipped.join(', ')} — down)` : ''}${staged ? ` — ${staged}` : ''}` };
 };
 H['enc.break'] = (s, ctx, p, a) => {
   requireGM(a);
@@ -621,11 +632,12 @@ H['enc.breakDone'] = (s, ctx, p, a) => {
 H['enc.endBreak'] = (s, ctx, p, a) => {
   requireGM(a);
   const e = combat.getEncounter(s, p.id);
+  const done = staging.finishAll(s, ctx, e); // anything still staged finishes during the break
   const b = tempo.endBreak(s, e);
   e.turnStartedAt = ctx.now();
-  return { summary: `Break over after ${b.seconds} s — round ${e.round}, ${charName(s, e.order[e.turn])}'s turn` };
+  return { summary: `Break over after ${b.seconds} s — round ${e.round}, ${charName(s, e.order[e.turn])}'s turn${done.length ? ` (${done.join('; ')})` : ''}` };
 };
-H['enc.end'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.endEncounter(s, ctx, e); return { summary: `Encounter ${e.name} ended` }; };
+H['enc.end'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); const done = staging.finishAll(s, ctx, e); combat.endEncounter(s, ctx, e); return { summary: `Encounter ${e.name} ended${done.length ? ` (${done.join('; ')})` : ''}` }; };
 H['enc.archive'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); e.status = p.restore ? 'ended' : 'archived'; return { summary: `${p.restore ? 'Restored' : 'Archived'} encounter ${e.name}`, gmOnly: true }; };
 H['enc.distance'] = (s, ctx, p, a) => { requireGM(a); const e = combat.getEncounter(s, p.id); combat.setDistance(e, p.a, p.b, p.yards); return { summary: `Distance ${charName(s, p.a)} ↔ ${charName(s, p.b)}: ${p.yards} yd`, gmOnly: true, quiet: true }; };
 H['enc.combatant'] = (s, ctx, p, a) => {
@@ -656,7 +668,7 @@ H['combat.attack'] = (s, ctx, p, a, env) => {
   const encNow = tempo.activeEncounterFor(s, c.id);
   if (encNow?.break) throw new ActionError('Nobody attacks during a break. The GM ends the break to resume combat.', 'time');
   tempo.spend(s, a, c.id, 0, 'Attacking');
-  if (p.weapon?.itemId && !p.ignoreReady) { const block = tempo.attackBlock(s, inv.getItem(s, p.weapon.itemId), encNow); if (block) throw new ActionError(block, 'not-ready'); }
+  if (p.weapon?.itemId && !p.ignoreReady) { const block = tempo.attackBlock(s, inv.getItem(s, p.weapon.itemId), encNow, p.actorId); if (block) throw new ActionError(block, 'not-ready'); }
   const ev = combat.declareAttack(s, ctx, { ...p, byUser: a.playerId || 'GM', visibility: isGM(a) ? (p.visibility || (c.kind === 'npc' ? 'public' : 'public')) : 'public' }, s.settings);
   return { summary: `${ev.title}: ${ev.attack.roll.total} vs ${ev.attack.effective} — ${ev.attack.roll.label}`, eventId: ev.id, gmOnly: ev.visibility === 'gm', result: { eventId: ev.id } };
 };

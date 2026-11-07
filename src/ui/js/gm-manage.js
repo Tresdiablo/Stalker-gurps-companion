@@ -328,7 +328,7 @@ export function Settings({ v }) {
     <${Panel} title="Rules — standard GURPS 4e"><div class="col">
       ${tog('ammoEffects', 'Ammunition effects (GURPS High-Tech: hollow-point, AP, buckshot)', 'HP: piercing one size larger, armor divisor (0.5). Buckshot: multiple projectiles.')}
       ${tog('bluntTrauma', 'Blunt trauma for flexible armor (optional rule, B379)')}
-      ${tog('readyRequired', 'One-second combat: weapons must be readied in hands (Ready maneuver, B366)', 'In combat a weapon must be in the “In hands” slot. Readying takes a turn (usable next round) unless a Fast-Draw roll succeeds; reloading takes the weapon’s reload time.')}
+      ${tog('readyRequired', 'One-second combat: weapons must be drawn into Hands (Ready maneuver, B366)', 'In combat a weapon must be in the Hands slot. Drawing takes a turn (usable next round) unless a Fast-Draw roll succeeds. The Ready slot stages magazines (2 turns), stripper clips (reload time), loose rounds (1 per turn, 2 with Fast-Draw (Ammo)) and medical items for the next turn.')}
       ${tog('enforceTurns', 'Players act only on their own turn', 'Attacks, aiming and timed actions are refused out of turn. The GM can always act.')}
       ${tog('skipDown', 'Skip dead or unconscious combatants in the turn order')}
       <div class="tiny dim">Core mechanics always follow the Basic Set: success rolls, criticals, rapid fire, active defenses, hit locations, wounding, shock, major wounds, HP/FP thresholds, encumbrance.</div></div><//>

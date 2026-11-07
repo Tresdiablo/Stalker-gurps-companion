@@ -1,6 +1,6 @@
 {
   "name": "stalker-gurps-companion",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "private": true,
   "description": "S.T.A.L.K.E.R. GURPS 4e campaign manager: GCS integration, grid inventory, weapon customization, Roll20-style GM combat dashboard, NPCs, traders and Tabletop Simulator companion.",
   "main": "src/desktop/main.cjs",
@@ -8,7 +8,7 @@
     "start": "electron .",
     "host": "node src/server/cli.cjs",
     "test": "node --test tests/unit/*.test.cjs",
-    "test:e2e": "node tests/e2e/run-e2e.cjs && node tests/e2e/turns-menu.cjs",
+    "test:e2e": "node tests/e2e/run-e2e.cjs && node tests/e2e/turns-menu.cjs && node tests/e2e/item-editor.cjs",
     "build:win": "electron-builder --win nsis --x64",
     "release:win": "electron-builder --win nsis --x64 --publish always"
   },

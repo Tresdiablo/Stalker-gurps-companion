@@ -4,8 +4,9 @@
  *
  * Turn mode (an encounter is active, no break):
  *   - players act only on their own character's turn (setting rules.enforceTurns)
- *   - an item put into the "In hands" (ready) slot is usable from the next round (Ready maneuver,
- *     B366); a successful Fast-Draw roll makes it usable immediately (B194)
+ *   - an item put into the Hands slot is usable from the next round (Ready maneuver, B366); a
+ *     successful Fast-Draw roll makes it usable immediately (B194)
+ *   - the Ready slot stages an item for next turn (magazine, clip, rounds, consumable) — staging.js
  *   - reloading takes the weapon's reload time in seconds (the "(3)" in Shots 30+1(3), B279);
  *     the weapon is usable again when that many rounds have passed
  *   - with rules.readyRequired, attacks need the weapon in hands and ready
@@ -71,11 +72,13 @@ function markBusy(item, enc, seconds, why) {
 }
 
 /** Why a weapon cannot be used for an attack right now (null when it can). */
-function attackBlock(s, item, enc) {
+function attackBlock(s, item, enc, charId) {
   if (!enc || enc.status !== 'active') return null;
   if (enc.break) return 'Nobody attacks during a break. The GM ends the break to resume combat.';
+  const cs = charId ? enc.combatants[charId] : null;
+  if (cs && cs.turnSpent === enc.round) return `This turn is already spent (${cs.turnSpentOn || 'busy'}).`;
   if (item.readyAt && enc.round < item.readyAt) return `${s.defs[item.defId]?.name || 'The weapon'} is still ${item.busy || 'being readied'} — usable from round ${item.readyAt}.`;
-  if (rule(s, 'readyRequired') && item.loc?.slot !== 'ready') return `Ready ${s.defs[item.defId]?.name || 'the weapon'} first: drag it into the "In hands" slot (takes a turn, or roll Fast-Draw).`;
+  if (rule(s, 'readyRequired') && item.loc?.slot !== 'hands') return `Draw ${s.defs[item.defId]?.name || 'the weapon'} first: drag it into the Hands slot (takes a turn, or roll Fast-Draw).`;
   return null;
 }
 

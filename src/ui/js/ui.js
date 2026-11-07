@@ -27,12 +27,19 @@ export async function runHost(cmd, payload, { ok } = {}) {
   catch (e) { toast(e.message, 'error'); return null; }
 }
 
+/**
+ * Interface scale (Settings → Interface scale) is a CSS zoom on <body>. Mouse coordinates are in
+ * screen pixels, but positions inside the body are in zoomed pixels, so divide by this factor.
+ */
+export function zf() { return parseFloat(getComputedStyle(document.body).zoom) || 1; }
+
 /* ----------------------------------------------------------- context menu */
 let menuState = null, menuRender = () => {};
 /** items: [{label, onClick, disabled, hint, sub:[...]}, '-', {header}] */
 export function openMenu(ev, items) {
   ev.preventDefault(); ev.stopPropagation();
-  const x = Math.min(ev.clientX, window.innerWidth - 230), y = Math.min(ev.clientY, window.innerHeight - 30 * Math.min(items.length, 14));
+  const z = zf();
+  const x = Math.min(ev.clientX / z, window.innerWidth / z - 230), y = Math.min(ev.clientY / z, window.innerHeight / z - 30 * Math.min(items.length, 14));
   menuState = { x, y, items: items.filter(Boolean) };
   menuRender();
 }
@@ -110,7 +117,8 @@ export function Tooltip() {
   const [, force] = useState(0);
   useEffect(() => { tipRender = () => force(x => x + 1); window.addEventListener('pointerdown', () => { tipState = null; tipRender(); }); }, []);
   if (!tipState) return null;
-  const x = Math.min(tipState.x + 14, window.innerWidth - 370), y = Math.min(tipState.y + 16, window.innerHeight - 140);
+  const z = zf();
+  const x = Math.min(tipState.x / z + 14, window.innerWidth / z - 370), y = Math.min(tipState.y / z + 16, window.innerHeight / z - 140);
   return html`<div class="tip" style=${{ left: x + 'px', top: y + 'px' }}>${tipState.text}</div>`;
 }
 
@@ -119,8 +127,9 @@ export function FloatWin({ title, x = 120, y = 120, w = 360, onClose, children }
   const ref = useRef();
   const [pos, setPos] = useState({ x, y });
   const down = e => {
-    const sx = e.clientX - pos.x, sy = e.clientY - pos.y;
-    const move = ev => setPos({ x: Math.max(0, ev.clientX - sx), y: Math.max(0, ev.clientY - sy) });
+    const z = zf();
+    const sx = e.clientX / z - pos.x, sy = e.clientY / z - pos.y;
+    const move = ev => setPos({ x: Math.max(0, ev.clientX / z - sx), y: Math.max(0, ev.clientY / z - sy) });
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
@@ -151,3 +160,5 @@ export function useLocal(key, initial) {
   return [v, set];
 }
 export function mount(App, el) { render(html`<${App} />`, el); }
+/** Render a vnode into a detached element (drag ghosts). */
+export function renderInto(vnode, el) { render(vnode, el); }

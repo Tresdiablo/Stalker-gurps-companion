@@ -32,7 +32,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 | Combat pipeline | Calculated → awaiting defense → resolved → applied / ignored. HP never changes automatically. GM tools: apply calculated or custom amount, FP, conditions, ignore, notify player, exact undo. GM overrides (effective skill, hit/miss, hit count, target, per-hit injury) are logged automatically. Duplicate packets and double clicks are absorbed. Ammunition is deducted when fired, and firing more than is loaded is refused. |
 | GM dashboard | Combatants (HP/FP, conditions, weapon and ammo, DR, turn marker), live feed with filters, pending-decision queue, a selected-target panel (quick HP/FP, conditions, posture, cover, SM, speed, distances, temporary modifiers, NPC attacks and rolls, roll requests, quick contests, loot release, reveal/hide), and keyboard shortcuts. |
 | Player combat | Weapon, target, hit location, shots (limited by RoF and rounds), range, quick modifiers, maneuvers (Aim accumulates on the same weapon and target; Ready), posture, defense prompts, GM notifications with one-click self-apply, skill and attribute rolls, GM roll requests (public / GM-only / concealed). |
-| Inventory | One engine for characters, NPCs, stashes, traders and containers. Grid snapping, collisions, compartments, accepted-category restrictions, rotation (button, `R` key, or while dragging), stacks (merge, split, sort), contents travelling with containers, recursion guard, equipment slots, pockets, ground, weight and encumbrance, drag and drop, context menus, search, quick transfer. |
+| Inventory | Dragging stays aligned with the cursor at any Settings → Interface scale (the drag ghost has the item's grid size, also when picked up from an equipment slot). One engine for characters, NPCs, stashes, traders and containers. Grid snapping, collisions, compartments, accepted-category restrictions, rotation (button, `R` key, or while dragging), stacks (merge, split, sort), contents travelling with containers, recursion guard, equipment slots, pockets, ground, weight and encumbrance, drag and drop, context menus, search, quick transfer. |
 | Weapons | Magazines are real items that keep their rounds. Mixed loads fire last-in-first-out. Chambered rounds, integral feeds, load/unload/quick-load, insert/eject/swap, explicit caliber/family/interface compatibility (for example PMM ammo fits only the Klin), attachments that lengthen the weapon, and effective stats with a breakdown. |
 | Modular art | Base PNG with layered attachment overlays at per-weapon anchors (position, rotation, scale, layer, per-model offsets). The fallback chain is layered art, then a preconfigured variant, then the base image or a silhouette. The whole assembly moves and rotates as one object. The anchor editor has a live compatible preview. The image library supports PNG import, auto-fit trim (stored as metadata) and background removal into a new derived file; originals are never altered. |
 | Armor | Layered DR by location plus natural DR. Optional rules, each off by default: blunt trauma (B379), DT, DP, condition-scaled DR. DP loss is applied only when the GM applies the damage. |
@@ -42,7 +42,8 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 | Campaign systems | Crafting (green/red availability, tools, skill rolls, repair recipes, result created exactly once), consumables (as proposals, self-apply for own PC), jobs (objectives, assignment, rewards paid exactly once), eight ranks plus perks (requests, approvals, allowance), stashes with access lists, notes, audit log, trash restore. |
 | GM controls | NPC control bar (auto-follows NPC turns, nearest-PC target, attack / reload / aim / maneuver / posture / next turn, secret rolls); searchable spawn picker (`G`) aimed at the selected character; catalog "Spawn into" receiver with + / double-click / right-click; one-click Reload for any firearm (best magazine or loose rounds); bulk distances; quick encounter with all PCs; Ctrl+click quick transfer. |
 | Turn cycle | Turn bar with round / current / next; "Your turn" pop-up and chime for the player whose character acts; "NPC turn" pop-up for the GM naming the NPC and who is next; players end their own turn (button or `E`, stale clicks ignored); downed combatants skipped; options to enforce turn order. |
-| 1-second combat | "In hands" ready slot; readying takes the turn (Fast-Draw roll to make it instant); reload times parsed from Shots; attachments 3 s; busy items shown with the round they become usable; un-readied weapons cannot attack (optional rule). |
+| 1-second combat | Hands slot (drawing takes the turn, Fast-Draw makes it instant), Sling/Back carry slots, and a Ready slot that stages an item for the next turn: magazines (grab + load = 2 turns, Fast-Draw (Ammo) = 1), loose rounds (1 per turn, 2 with Fast-Draw (Ammo)), stripper clips (reload time from Shots), consumables, drawing weapons. Pulled magazines and empty clips go rig → backpack → pockets → ground. Spent turns block attacks and are shown in the turn pop-up. Free outside encounters; seconds during breaks. Old saves move the former "In hands" items to Hands (schema 2). |
+| Item Editor | Drop-downs of catalog IDs per field kind (calibers, magazine/clip families, interfaces, weapon ids, tags, conditions, container categories, mount interfaces) with matching IDs first; GURPS gun/thrown/melee/unarmed skill list; subcategory → weapon skill; category → behaviour; grid preview with picture-shape check. |
 | Breaks | GM allots N seconds; per-player second budgets spent by ready / reload / attach / load / aim / use; no attacks; "I'm done" per player; ending advances the clock N rounds, completes readying, restarts the order. |
 | Main menu & GM password | Character picker with server-side locks (one person per character), join codes, GM password (default `goyim`, salted scrypt hash, changeable in Settings), logout back to the menu. |
 | Start screen | GM: continue / switch / create / test campaign, import, migrate, pre-session checklist. Player: pick a character. Both show who is online. |
@@ -96,7 +97,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
 
 ## Tests performed
 
-* `npm test`: **46 tests, all passing**. They cover:
+* `npm test`: **54 tests, all passing**. They cover:
   * dice, criticals, contests, damage parsing,
   * SSR range, rapid fire, hits and Dodge vs rapid fire,
   * wounding, injury, armor divisor, limb caps, shock, thresholds, encumbrance, modifiers,
@@ -117,6 +118,7 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
   * GCS file watching (never writes) and import that preserves damage, with a diff and conflict note,
   * the TTS bridge protocol,
   * turn order, readying (normal and Fast-Draw), reload times, breaks and their second budgets,
+  * the Ready slot: magazines in 2 turns, Fast-Draw (Ammo), round-by-round loading, stripper clips, consumables, drawing, cancelling, breaks, and the save migration,
   * GM password, main-menu join, character locks and logout on the host,
   * legacy migration from a representative 0.9 save fixture.
 * `node tests/e2e/run-e2e.cjs`: **passing**. It drives the real UI in Chromium with a GM window and a player window. It covers:
@@ -127,7 +129,8 @@ GCS is a native Go/Unison application. Its editor cannot be embedded inside the 
   * context-menu unload and quick-load,
   * trader purchase,
   * installing a scope and suppressor with layered rendering.
-* `node tests/e2e/turns-menu.cjs`: **passing**. GM, two players and a third window in Chromium: wrong GM password refused and `goyim` accepted, a character in use locked for others, "Your turn" and "NPC turn" pop-ups, readying a rifle (usable next round), ending turns by button and `E`, a 5-second break with a 3-second reload, ending the break (clock to round 7), and returning to the main menu frees the character.
+* `node tests/e2e/turns-menu.cjs`: **passing**. GM, two players and a third window in Chromium: wrong GM password refused and `goyim` accepted, a character in use locked for others, "Your turn" and "NPC turn" pop-ups, readying a rifle (usable next round), ending turns by button and `E`, a 5-second break with a 3-second reload, ending the break (clock to round 7), a magazine staged in the Ready slot and loaded automatically at the start of the next turn, and returning to the main menu frees the character.
+* `node tests/e2e/item-editor.cjs`: **passing**. Category switches on the Weapon behaviour, Shotguns/Pistols set the skill, the magazine-family drop-down lists families that take the chosen caliber first, and the saved definition has the picked IDs.
 * GCS reader run over the 648 master-library `.gcs` files: all parsed, and point totals match.
 * Pinned GCS archives downloaded and checked: 5.58.0 `1bf69c17…` matches the earlier build's pin; 5.58.1 `fb209e11…` is now pinned.
 * Electron app launched under Xvfb on Linux: the GM window loaded with no page errors and the preload bridge was available.
